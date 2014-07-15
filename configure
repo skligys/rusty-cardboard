@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+source config.mk
+if [[ -z "$ANDROID_NDK_HOME" || -z "$ANDROID_NDK_STANDALONE_HOME" || -z "$ANDROID_SDK_HOME" ]]; then
+  echo "Please create a file config.mk containing:" >&2
+  echo "" >&2
+  echo "ANDROID_NDK_HOME=root directory of your Android NDK" >&2
+  echo "ANDROID_NDK_STANDALONE_HOME=root directory of your standalone Android NDK (will be created or deleted and re-created)" >&2
+  echo "ANDROID_SDK_HOME=root directory of your Android SDK" >&2
+  exit 1
+fi
+if [[ ! -d "$ANDROID_NDK_HOME" ]]; then
+  echo "Directory not found: $ANDROID_NDK_HOME" >&2
+  exit 1
+fi
+if [[ ! -d "$ANDROID_SDK_HOME" ]]; then
+  echo "Directory not found: $ANDROID_SDK_HOME" >&2
+  exit 1
+fi
+
+if [[ -d "$ANDROID_NDK_STANDALONE_HOME" ]]; then
+  read -r -p "Are you sure you want to delete $ANDROID_NDK_STANDALONE_HOME? [y/N] " response
+  response=${response,,}   # tolower
+  if [[ $response =~ ^(yes|y)$ ]]; then
+    rm -rf "$ANDROID_NDK_STANDALONE_HOME"
+  fi
+fi
+$ANDROID_NDK_HOME/build/tools/make-standalone-toolchain.sh --toolchain=arm-linux-androideabi-4.8 --platform=android-19 --install-dir=$ANDROID_NDK_STANDALONE_HOME --ndk-dir=$ANDROID_NDK_HOME
+
+$ANDROID_SDK_HOME/tools/android list target
+$ANDROID_SDK_HOME/tools/android update project --target 1 --name RustyCardboard --path . --subprojects
+
+echo
+echo Now run: make

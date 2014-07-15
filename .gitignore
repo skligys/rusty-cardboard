@@ -1,0 +1,12 @@
+bin
+libs
+obj
+
+ant.properties
+build.xml
+config.mk
+jni/*.a
+local.properties
+proguard-project.txt
+project.properties
+skligys.keystore
