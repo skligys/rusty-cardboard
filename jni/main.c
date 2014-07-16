@@ -20,7 +20,7 @@
 #include <errno.h>
 
 #include <EGL/egl.h>
-#include <GLES/gl.h>
+#include <GLES2/gl2.h>
 
 #include <android/sensor.h>
 #include <android/log.h>
@@ -66,15 +66,17 @@ static int engine_init_display(struct engine* engine) {
     /*
      * Here specify the attributes of the desired configuration.
      * Below, we select an EGLConfig with at least 8 bits per color
-     * component compatible with on-screen windows
+     * component compatible with OpenGL ES 2.0.
      */
     const EGLint attribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
             EGL_BLUE_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_RED_SIZE, 8,
             EGL_NONE
     };
+    /* Soecify OpenGL ES 2.0 context when creating it. */
+    const EGLint attrib_list[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
     EGLint w, h, dummy, format;
     EGLint numConfigs;
     EGLConfig config;
@@ -99,11 +101,26 @@ static int engine_init_display(struct engine* engine) {
     ANativeWindow_setBuffersGeometry(engine->app->window, 0, 0, format);
 
     surface = eglCreateWindowSurface(display, config, engine->app->window, NULL);
-    context = eglCreateContext(display, config, NULL, NULL);
+    context = eglCreateContext(display, config, NULL, attrib_list);
 
     if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
         LOGW("Unable to eglMakeCurrent");
         return -1;
+    }
+
+    // Dump some info to make sure OpenGL ES 2.0 is really being used.
+    {
+        const GLubyte* version = glGetString(GL_VERSION);
+        const GLubyte* vendor = glGetString(GL_VENDOR);
+        const GLubyte* renderer = glGetString(GL_RENDERER);
+        const GLubyte* slVersion = glGetString(GL_SHADING_LANGUAGE_VERSION);
+        LOGI("OpenGL version: \"%s\", vendor: \"%s\", renderer: \"%s\", "
+            "SL version: \"%s\"",
+            (const char*)version, (const char*)vendor, (const char*)renderer,
+            (const char*)slVersion);
+
+        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        LOGI("OpenGL extensions: \"%s\"", (const char*)extensions);
     }
 
     eglQuerySurface(display, surface, EGL_WIDTH, &w);
@@ -117,9 +134,7 @@ static int engine_init_display(struct engine* engine) {
     engine->state.angle = 0;
 
     // Initialize GL state.
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
     glEnable(GL_CULL_FACE);
-    glShadeModel(GL_SMOOTH);
     glDisable(GL_DEPTH_TEST);
 
     return 0;
