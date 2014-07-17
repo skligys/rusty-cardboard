@@ -57,6 +57,9 @@ struct engine {
     struct saved_state state;
 };
 
+/* Functions implemented in Rust. */
+extern init_display(struct engine* engine);
+
 /**
  * Initialize an EGL context for the current display.
  */
@@ -76,16 +79,22 @@ static int engine_init_display(struct engine* engine) {
             EGL_NONE
     };
     /* Soecify OpenGL ES 2.0 context when creating it. */
+/* Done in Rust:
     const EGLint attrib_list[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+*/
     EGLint w, h, dummy, format;
     EGLint numConfigs;
     EGLConfig config;
+/* Done in Rust:
     EGLSurface surface;
     EGLContext context;
+*/
 
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
+/* Done in Rust:
     eglInitialize(display, 0, 0);
+*/
 
     /* Here, the application chooses the configuration it desires. In this
      * sample, we have a very simplified selection process, where we pick
@@ -96,14 +105,16 @@ static int engine_init_display(struct engine* engine) {
      * guaranteed to be accepted by ANativeWindow_setBuffersGeometry().
      * As soon as we picked a EGLConfig, we can safely reconfigure the
      * ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID. */
+/* Done in Rust:
     eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
 
     ANativeWindow_setBuffersGeometry(engine->app->window, 0, 0, format);
 
     surface = eglCreateWindowSurface(display, config, engine->app->window, NULL);
     context = eglCreateContext(display, config, NULL, attrib_list);
+*/
 
-    if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
+    if (eglMakeCurrent(display, engine->surface, engine->surface, engine->context) == EGL_FALSE) {
         LOGW("Unable to eglMakeCurrent");
         return -1;
     }
@@ -123,12 +134,14 @@ static int engine_init_display(struct engine* engine) {
         LOGI("OpenGL extensions: \"%s\"", (const char*)extensions);
     }
 
-    eglQuerySurface(display, surface, EGL_WIDTH, &w);
-    eglQuerySurface(display, surface, EGL_HEIGHT, &h);
+    eglQuerySurface(display, engine->surface, EGL_WIDTH, &w);
+    eglQuerySurface(display, engine->surface, EGL_HEIGHT, &h);
 
     engine->display = display;
+/* Done in Rust:
     engine->context = context;
     engine->surface = surface;
+*/
     engine->width = w;
     engine->height = h;
     engine->state.angle = 0;
@@ -206,7 +219,11 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             // The window is being shown, get it ready.
             if (engine->app->window != NULL) {
+                // I am porting engine_init_display() to Rust piece by piece.
+                // Call both for now, remove engine_init_display() when done.
+                init_display(engine);
                 engine_init_display(engine);
+
                 engine_draw_frame(engine);
             }
             break;
@@ -246,9 +263,7 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
 void android_main(struct android_app* state) {
     struct engine engine;
 
-    // Call Rust.
-    extern int rusty_android();
-    LOGI("**** Rust says: %d ****", rusty_android());
+    LOGI("-------------------------------------------------------------------");
 
     // Make sure glue isn't stripped.
     app_dummy();
