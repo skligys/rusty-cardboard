@@ -55,7 +55,6 @@ pub fn get_display(display_id: NativeDisplayType) -> Display {
 
 #[deriving(Show)]
 enum Error {
-  Failed,
   NoSurface,
   NotInitialized,
   BadAlloc,
@@ -73,10 +72,15 @@ pub fn initialize(display: Display) -> Result<(), Error> {
     eglInitialize(display, 0 as *mut i32, 0 as *mut i32)
   };
   match res {
-    FALSE => Err(Failed),
     TRUE => Ok(()),
-    NOT_INITIALIZED => Err(NotInitialized),
-    BAD_DISPLAY => Err(BadDisplay),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_DISPLAY => Err(BadDisplay),
+        _ => fail!("Unknown error from eglInitialize(): {}", err),
+      }
+    },
     _ => fail!("Unknown return value from eglInitialize(): {}", res),
   }
 }
@@ -89,10 +93,15 @@ pub fn initialize_with_version(display: Display) -> Result<(i32, i32), Error> {
     eglInitialize(display, &mut major, &mut minor)
   };
   match res {
-    FALSE => Err(Failed),
     TRUE => Ok((major, minor)),
-    NOT_INITIALIZED => Err(NotInitialized),
-    BAD_DISPLAY => Err(BadDisplay),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_DISPLAY => Err(BadDisplay),
+        _ => fail!("Unknown error from eglInitialize(): {}", err),
+      }
+    },
     _ => fail!("Unknown return value from eglInitialize(): {}", res),
   }
 }
@@ -104,15 +113,20 @@ pub fn choose_config(display: Display, attribs: &[Int], configs: &mut Vec<Config
     eglChooseConfig(display, attribs.as_ptr(), configs.as_mut_ptr(), configs.len() as Int, &mut num_config)
   };
   match res {
-    FALSE => Err(Failed),
     TRUE => {
       configs.truncate(num_config as uint);
       Ok(())
     },
-    NOT_INITIALIZED => Err(NotInitialized),
-    BAD_ATTRIBUTE => Err(BadAttribute),
-    BAD_DISPLAY => Err(BadDisplay),
-    BAD_PARAMETER => Err(BadParameter),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_ATTRIBUTE => Err(BadAttribute),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_PARAMETER => Err(BadParameter),
+        _ => fail!("Unknown error from eglChooseConfig(): {}", err),
+      }
+    },
     _ => fail!("Unknown return value from eglChooseConfig(): {}", res),
   }
 }
@@ -123,13 +137,18 @@ pub fn get_config_attrib(display: Display, config: Config, attribute: Int) -> Re
     eglGetConfigAttrib(display, config, attribute, &mut result)
   };
   match res {
-    FALSE => Err(Failed),
     TRUE => Ok(result),
-    NOT_INITIALIZED => Err(NotInitialized),
-    BAD_ATTRIBUTE => Err(BadAttribute),
-    BAD_CONFIG => Err(BadConfig),
-    BAD_DISPLAY => Err(BadDisplay),
-    _ => fail!("Unknown return value from eglChooseConfig(): {}", res),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_ATTRIBUTE => Err(BadAttribute),
+        BAD_CONFIG => Err(BadConfig),
+        BAD_DISPLAY => Err(BadDisplay),
+        _ => fail!("Unknown error from eglGetConfigAttrib(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglGetConfigAttrib(): {}", res),
   }
 }
 
