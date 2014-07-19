@@ -28,6 +28,10 @@ pub static NATIVE_VISUAL_ID: Int = 0x302E;
 // Context attributes.
 pub static CONTEXT_CLIENT_VERSION: Int = 0x3098;
 
+// QuerySurface targets
+pub static HEIGHT: Int = 0x3056;
+pub static WIDTH: Int = 0x3057;
+
 type NativeWindowType = *const ANativeWindow;
 
 type Int = i32;
@@ -96,9 +100,9 @@ pub fn initialize(display: Display) -> Result<(), Error> {
 }
 
 #[allow(dead_code)]
-pub fn initialize_with_version(display: Display) -> Result<(i32, i32), Error> {
-  let mut major: i32 = 0;
-  let mut minor: i32 = 0;
+pub fn initialize_with_version(display: Display) -> Result<(Int, Int), Error> {
+  let mut major: Int = 0;
+  let mut minor: Int = 0;
   let res = unsafe {
     eglInitialize(display, &mut major, &mut minor)
   };
@@ -184,6 +188,7 @@ pub fn create_window_surface(display: Display, config: Config, window: NativeWin
   }
 }
 
+#[allow(dead_code)]
 pub fn create_window_surface_with_attribs(display: Display, config: Config, window: NativeWindowType,
   attribs: &[Int]) -> Result<Surface, Error> {
   let res = unsafe {
@@ -206,6 +211,7 @@ pub fn create_window_surface_with_attribs(display: Display, config: Config, wind
   }
 }
 
+#[allow(dead_code)]
 pub fn create_context(display: Display, config: Config, share_context: Context) ->
   Result<Context, Error> {
   let res = unsafe {
@@ -277,6 +283,27 @@ pub fn make_current(display: Display, draw: Surface, read: Surface, context: Con
   }
 }
 
+pub fn query_surface(display: Display, surface: Surface, attribute: Int) -> Result<Int, Error> {
+  let mut value: Int = 0;
+  let res = unsafe {
+    eglQuerySurface(display, surface, attribute, &mut value)
+  };
+  match res {
+    TRUE => Ok(value),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_ATTRIBUTE => Err(BadAttribute),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_SURFACE => Err(BadSurface),
+        _ => fail!("Unknown error from eglQuerySurface(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglQuerySurface(): {}", res),
+  }
+}
+
 extern {
   fn eglGetDisplay(display_id: NativeDisplayType) -> Display;
   fn eglInitialize(display: Display, major: *mut Int, minor: *mut Int) -> Boolean;
@@ -287,4 +314,5 @@ extern {
   fn eglGetError() -> Int;
   fn eglCreateContext(display: Display, config: Config, share_context: Context, attrib_list: *const Int) -> Context;
   fn eglMakeCurrent(display: Display, draw: Surface, read: Surface, context: Context) -> Boolean;
+  fn eglQuerySurface(display: Display, surface: Surface, attribute: Int, value: *mut Int) -> Boolean;
 }

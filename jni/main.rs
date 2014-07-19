@@ -199,11 +199,23 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   };
   logi_f(format!("OpenGL extensions: \"{}\"", extensions.as_str().unwrap()));
 
+  let w = match egl::query_surface(display, surface, egl::WIDTH) {
+    Ok(i) => i,
+    Err(e) => fail!("egl::query_surface(egl::WIDTH) failed: {}", e),
+  };
+  let h = match egl::query_surface(display, surface, egl::HEIGHT) {
+    Ok(i) => i,
+    Err(e) => fail!("egl::query_surface(egl::HEIGHT) failed: {}", e),
+  };
+
   // ...
 
   engine.display = display;
   engine.context = context;
   engine.surface = surface;
+  engine.width = w;
+  engine.height = h;
+  engine.state.angle = 0.0;
 
   // ...
 
