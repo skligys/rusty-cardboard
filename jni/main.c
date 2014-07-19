@@ -61,97 +61,6 @@ struct engine {
 extern init_display(struct engine* engine);
 
 /**
- * Initialize an EGL context for the current display.
- */
-static int engine_init_display(struct engine* engine) {
-    // initialize OpenGL ES and EGL
-
-    /*
-     * Here specify the attributes of the desired configuration.
-     * Below, we select an EGLConfig with at least 8 bits per color
-     * component compatible with OpenGL ES 2.0.
-     */
-/* Done in Rust:
-    const EGLint attribs[] = {
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_BLUE_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
-            EGL_NONE
-    };
-*/
-    /* Soecify OpenGL ES 2.0 context when creating it. */
-/* Done in Rust:
-    const EGLint attrib_list[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-    EGLint w, h, dummy, format;
-    EGLint numConfigs;
-    EGLConfig config;
-    EGLSurface surface;
-    EGLContext context;
-
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-
-    eglInitialize(display, 0, 0);
-*/
-
-    /* Here, the application chooses the configuration it desires. In this
-     * sample, we have a very simplified selection process, where we pick
-     * the first EGLConfig that matches our criteria */
-/* Done in Rust:
-    eglChooseConfig(display, attribs, &config, 1, &numConfigs);
-*/
-
-    /* EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is
-     * guaranteed to be accepted by ANativeWindow_setBuffersGeometry().
-     * As soon as we picked a EGLConfig, we can safely reconfigure the
-     * ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID. */
-/* Done in Rust:
-    eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
-
-    ANativeWindow_setBuffersGeometry(engine->app->window, 0, 0, format);
-
-    surface = eglCreateWindowSurface(display, config, engine->app->window, NULL);
-    context = eglCreateContext(display, config, NULL, attrib_list);
-
-    if (eglMakeCurrent(display, engine->surface, engine->surface, engine->context) == EGL_FALSE) {
-        LOGW("Unable to eglMakeCurrent");
-        return -1;
-    }
-
-    // Dump some info to make sure OpenGL ES 2.0 is really being used.
-    {
-        const GLubyte* version = glGetString(GL_VERSION);
-        const GLubyte* vendor = glGetString(GL_VENDOR);
-        const GLubyte* renderer = glGetString(GL_RENDERER);
-        const GLubyte* slVersion = glGetString(GL_SHADING_LANGUAGE_VERSION);
-        LOGI("OpenGL version: \"%s\", vendor: \"%s\", renderer: \"%s\", "
-            "SL version: \"%s\"",
-            (const char*)version, (const char*)vendor, (const char*)renderer,
-            (const char*)slVersion);
-
-        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
-        LOGI("OpenGL extensions: \"%s\"", (const char*)extensions);
-    }
-
-    eglQuerySurface(display, engine->surface, EGL_WIDTH, &w);
-    eglQuerySurface(display, engine->surface, EGL_HEIGHT, &h);
-
-    engine->display = display;
-    engine->context = context;
-    engine->surface = surface;
-    engine->width = w;
-    engine->height = h;
-*/
-    engine->state.angle = 0;
-
-    // Initialize GL state.
-    glEnable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-
-    return 0;
-}
-
-/**
  * Just the current frame in the display.
  */
 static void engine_draw_frame(struct engine* engine) {
@@ -217,11 +126,7 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             // The window is being shown, get it ready.
             if (engine->app->window != NULL) {
-                // I am porting engine_init_display() to Rust piece by piece.
-                // Call both for now, remove engine_init_display() when done.
                 init_display(engine);
-                engine_init_display(engine);
-
                 engine_draw_frame(engine);
             }
             break;

@@ -208,8 +208,6 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
     Err(e) => fail!("egl::query_surface(egl::HEIGHT) failed: {}", e),
   };
 
-  // ...
-
   engine.display = display;
   engine.context = context;
   engine.surface = surface;
@@ -217,7 +215,14 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   engine.height = h;
   engine.state.angle = 0.0;
 
-  // ...
+  match gl::enable(gl::CULL_FACE) {
+    Ok(()) => (),
+    Err(e) => fail!("gl::enable(gl::CULL_FACE) failed: {}", e),
+  };
+  match gl::disable(gl::DEPTH_TEST) {
+    Ok(()) => (),
+    Err(e) => fail!("gl::disable(gl::DEPTH_TEST) failed: {}", e),
+  };
 
   return 0;
 }
