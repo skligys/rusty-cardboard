@@ -16,7 +16,7 @@ include $(CLEAR_VARS)
 
 # Main
 LOCAL_MODULE := native-activity
-LOCAL_SRC_FILES := main.c
+LOCAL_SRC_FILES := main.c android_log_glue.c
 LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv2
 LOCAL_STATIC_LIBRARIES := android_native_app_glue rust-prebuilt unwind
 include $(BUILD_SHARED_LIBRARY)

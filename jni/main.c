@@ -112,7 +112,6 @@ static int engine_init_display(struct engine* engine) {
 
     surface = eglCreateWindowSurface(display, config, engine->app->window, NULL);
     context = eglCreateContext(display, config, NULL, attrib_list);
-*/
 
     if (eglMakeCurrent(display, engine->surface, engine->surface, engine->context) == EGL_FALSE) {
         LOGW("Unable to eglMakeCurrent");
@@ -133,12 +132,13 @@ static int engine_init_display(struct engine* engine) {
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
         LOGI("OpenGL extensions: \"%s\"", (const char*)extensions);
     }
+*/
 
     eglQuerySurface(display, engine->surface, EGL_WIDTH, &w);
     eglQuerySurface(display, engine->surface, EGL_HEIGHT, &h);
 
-    engine->display = display;
 /* Done in Rust:
+    engine->display = display;
     engine->context = context;
     engine->surface = surface;
 */

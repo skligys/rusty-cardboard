@@ -37,14 +37,19 @@ type Boolean = c_uint;
 static FALSE: Boolean = 0;
 static TRUE: Boolean = 1;
 static NOT_INITIALIZED: Boolean = 0x3001;
+static BAD_ACCESS: Boolean = 0x3002;
 static BAD_ALLOC: Boolean = 0x3003;
 static BAD_ATTRIBUTE: Boolean = 0x3004;
 static BAD_CONFIG: Boolean = 0x3005;
 static BAD_CONTEXT: Boolean = 0x3006;
+static BAD_CURRENT_SURFACE: Boolean = 0x3007;
 static BAD_DISPLAY: Boolean = 0x3008;
 static BAD_MATCH: Boolean = 0x3009;
+static BAD_NATIVE_PIXMAP: Boolean = 0x300A;
 static BAD_NATIVE_WINDOW: Boolean = 0x300B;
 static BAD_PARAMETER: Boolean = 0x300C;
+static BAD_SURFACE: Boolean = 0x300D;
+static CONTEXT_LOST: Boolean = 0x300E;  // EGL 1.1 - IMG_power_management
 
 
 pub fn get_display(display_id: NativeDisplayType) -> Display {
@@ -57,14 +62,19 @@ pub fn get_display(display_id: NativeDisplayType) -> Display {
 enum Error {
   NoSurface,
   NotInitialized,
+  BadAccess,
   BadAlloc,
   BadAttribute,
   BadConfig,
   BadContext,
+  BadCurrentSurface,
   BadDisplay,
   BadMatch,
+  BadNativePixmap,
   BadNativeWindow,
   BadParameter,
+  BadSurface,
+  ContextLost,
 }
 
 pub fn initialize(display: Display) -> Result<(), Error> {
@@ -240,6 +250,33 @@ pub fn create_context_with_attribs(display: Display, config: Config, share_conte
   }
 }
 
+pub fn make_current(display: Display, draw: Surface, read: Surface, context: Context) -> Result<(), Error> {
+  let res = unsafe {
+    eglMakeCurrent(display, draw, read, context)
+  };
+  match res {
+    TRUE => Ok(()),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_ACCESS => Err(BadAccess),
+        BAD_ALLOC => Err(BadAlloc),
+        BAD_CONTEXT => Err(BadContext),
+        BAD_CURRENT_SURFACE => Err(BadCurrentSurface),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_MATCH => Err(BadMatch),
+        BAD_NATIVE_PIXMAP => Err(BadNativePixmap),
+        BAD_NATIVE_WINDOW => Err(BadNativeWindow),
+        BAD_SURFACE => Err(BadSurface),
+        CONTEXT_LOST => Err(ContextLost),
+        _ => fail!("Unknown error from eglMakeCurrent(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglMakeCurrent(): {}", res),
+  }
+}
+
 extern {
   fn eglGetDisplay(display_id: NativeDisplayType) -> Display;
   fn eglInitialize(display: Display, major: *mut Int, minor: *mut Int) -> Boolean;
@@ -249,4 +286,5 @@ extern {
   fn eglCreateWindowSurface(display: Display, config: Config, window: NativeWindowType, attrib_list: *const Int) -> Surface;
   fn eglGetError() -> Int;
   fn eglCreateContext(display: Display, config: Config, share_context: Context, attrib_list: *const Int) -> Context;
+  fn eglMakeCurrent(display: Display, draw: Surface, read: Surface, context: Context) -> Boolean;
 }

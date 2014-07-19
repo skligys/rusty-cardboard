@@ -1,8 +1,9 @@
 extern crate libc;
-use libc::{c_float, c_int, c_void, size_t};
+use libc::{c_char, c_float, c_int, c_void, size_t};
 use native_window::ANativeWindow;
 
 mod egl;
+mod gl;
 mod native_window;
 
 // TODO: implement.
@@ -111,7 +112,7 @@ struct Engine {
 }
 
 #[no_mangle]
-pub extern fn init_display(engine: &mut Engine) {
+pub extern fn init_display(engine: &mut Engine) -> c_int {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   match egl::initialize(display) {
@@ -164,13 +165,81 @@ pub extern fn init_display(engine: &mut Engine) {
     Err(e) => fail!("egl::create_context() failed: {}", e),
   };
 
-  // // if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
-  // //     LOGW("Unable to eglMakeCurrent");
-  // //     return -1;
-  // // }
+  match egl::make_current(display, surface, surface, context) {
+    Ok(()) => (),
+    Err(_) => {
+      logw("Unable to egl::make_current");
+      return -1;
+    }
+  }
+
+  let version = match gl::get_string(gl::VERSION) {
+    Ok(s) => s,
+    Err(e) => fail!("gl::get_string(gl::VERSION) failed: {}", e),
+  };
+  let vendor = match gl::get_string(gl::VENDOR) {
+    Ok(s) => s,
+    Err(e) => fail!("gl::get_string(gl::VENDOR) failed: {}", e),
+  };
+  let renderer = match gl::get_string(gl::RENDERER) {
+    Ok(s) => s,
+    Err(e) => fail!("gl::get_string(gl::RENDERER) failed: {}", e),
+  };
+  let sl_version = match gl::get_string(gl::SHADING_LANGUAGE_VERSION) {
+    Ok(s) => s,
+    Err(e) => fail!("gl::get_string(gl::SHADING_LANGUAGE_VERSION) failed: {}", e),
+  };
+  logi_f(format!("OpenGL version: \"{}\", vendor: \"{}\", renderer: \"{}\", SL version: \"{}\"",
+    version.as_str().unwrap(), vendor.as_str().unwrap(), renderer.as_str().unwrap(),
+    sl_version.as_str().unwrap()));
+
+  let extensions = match gl::get_string(gl::EXTENSIONS) {
+    Ok(s) => s,
+    Err(e) => fail!("gl::get_string(gl::EXTENSIONS) failed: {}", e),
+  };
+  logi_f(format!("OpenGL extensions: \"{}\"", extensions.as_str().unwrap()));
 
   // ...
 
+  engine.display = display;
   engine.context = context;
   engine.surface = surface;
+
+  // ...
+
+  return 0;
+}
+
+// Bridges to Android logging.
+fn logi(msg: &str) {
+  let c_string = msg.to_c_str();
+  unsafe {
+    c_logi_string(c_string.as_ptr());
+  }
+}
+
+fn logi_f(msg: String) {
+  let c_string = msg.to_c_str();
+  unsafe {
+    c_logi_string(c_string.as_ptr());
+  }
+}
+
+fn logw(msg: &str) {
+  let c_string = msg.to_c_str();
+  unsafe {
+    c_logw_string(c_string.as_ptr());
+  }
+}
+
+fn logw_f(msg: String) {
+  let c_string = msg.to_c_str();
+  unsafe {
+    c_logw_string(c_string.as_ptr());
+  }
+}
+
+extern {
+  fn c_logi_string(msg: *const c_char);
+  fn c_logw_string(msg: *const c_char);
 }

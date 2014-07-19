@@ -14,17 +14,17 @@ deploy_release: bin/RustyCardboard-release.apk
 
 apk: bin/RustyCardboard-debug.apk
 
-bin/RustyCardboard-debug.apk: build.xml jni/main.c jni/Android.mk jni/Application.mk jni/librust.a
+bin/RustyCardboard-debug.apk: build.xml jni/android_log_glue.c jni/main.c jni/Android.mk jni/Application.mk jni/librust.a
 	$(ANDROID_NDK_HOME)/ndk-build
 	ant debug
 
-bin/RustyCardboard-release.apk: build.xml jni/main.c jni/Android.mk jni/Application.mk jni/librust.a
+bin/RustyCardboard-release.apk: build.xml jni/android_log_glue.c jni/main.c jni/Android.mk jni/Application.mk jni/librust.a
 	$(ANDROID_NDK_HOME)/ndk-build
 	ant release
 
 rust: jni/librust.a
 
-jni/librust.a: jni/egl.rs jni/main.rs jni/native_window.rs
+jni/librust.a: jni/egl.rs jni/gl.rs jni/main.rs jni/native_window.rs
 	$(PRE_RUSTC) $(RUSTC) --target=arm-linux-androideabi jni/main.rs -C linker=$(ANDROID_NDK_STANDALONE_HOME)/bin/arm-linux-androideabi-gcc --crate-type=staticlib --opt-level=3 -o jni/librust.a
 
 clean:
