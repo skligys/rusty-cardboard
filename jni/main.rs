@@ -1,15 +1,17 @@
 #![feature(macro_rules)]
 
 extern crate libc;
-use libc::{c_float, c_int, c_void, int32_t, size_t};
+use libc::{c_float, c_int, c_void, int32_t, malloc, size_t};
 use native_window::ANativeWindow;
 use std::mem;
+use std::ptr;
 
 mod egl;
 mod gl;
 mod input;
 mod native_window;
 mod log;
+mod sensor;
 
 // Macro that logs an Android error on error and terminates.
 macro_rules! gl_try( ($n: expr, $e: expr) => (
@@ -30,9 +32,7 @@ macro_rules! gl_try( ($n: expr, $e: expr) => (
 struct ANativeActivity;
 
 /// Opaque structure representing Android configuration.
-struct AConfiguration {
-  dummy: *const c_void,
-}
+struct AConfiguration;
 
 /**
  * A looper is the state tracking an event loop for a thread.
@@ -78,12 +78,12 @@ struct AndroidApp {
   // set to NULL.  These variables should only be changed when processing a APP_CMD_SAVE_STATE,
   // at which point they will be initialized to NULL and you can malloc your state and place
   // the information here.  In that case the memory will be freed for you later.
-  saved_state: *const c_void,
+  saved_state: *mut c_void,
   saved_state_size: size_t,
   // The ALooper associated with the app's thread.
   looper: *const ALooper,
   // When non-NULL, this is the input queue from which the app will receive user input events.
-  input_queue: *const input::AInputQueue,
+  input_queue: *const input::Queue,
   // When non-NULL, this is the window surface that the app can draw in.
   window: *const ANativeWindow,
   // Current content rectangle of the window; this is the area where the window's content should be
@@ -98,13 +98,6 @@ struct AndroidApp {
   // Plus some private implementation details.
 }
 
-// Opaque structure.
-struct ASensorManager;
-// Opaque structure.
-struct ASensor;
-// Opaque structure.
-struct ASensorEventQueue;
-
 // Saved state data.  Compatible with C.
 struct SavedState {
   angle: c_float,
@@ -114,11 +107,11 @@ struct SavedState {
 
 // Shared state for our app.  Compatible with C.
 struct Engine {
-  app: *const AndroidApp,
+  app: *mut AndroidApp,
 
-  sensor_manager: *const ASensorManager,
-  accelerometer_sensor: *const ASensor,
-  sensor_event_queue: *const ASensorEventQueue,
+  sensor_manager: *const sensor::Manager,
+  accelerometer_sensor: *const sensor::Sensor,
+  sensor_event_queue: *mut sensor::EventQueue,
 
   animating: c_int,
   display: egl::Display,
@@ -243,7 +236,7 @@ pub extern fn term_display(engine: &mut Engine) {
 
 /// Process the next input event.
 #[no_mangle]
-pub extern fn handle_input(app: *mut AndroidApp, event: *const input::AInputEvent) -> int32_t {
+pub extern fn handle_input(app: *mut AndroidApp, event: *const input::Event) -> int32_t {
   let engine_ptr = unsafe { (*app).user_data as *mut Engine };
   if engine_ptr.is_null() {
     fail!("Engine pointer is null");
@@ -258,5 +251,88 @@ pub extern fn handle_input(app: *mut AndroidApp, event: *const input::AInputEven
       engine.state.y = input::get_motion_event_y(event, 0) as i32;
       return 1;
     },
+  }
+}
+
+// Native app glue command enums:
+static APP_CMD_INIT_WINDOW: int32_t = 1;
+static APP_CMD_TERM_WINDOW: int32_t = 2;
+static APP_CMD_GAINED_FOCUS: int32_t = 6;
+static APP_CMD_LOST_FOCUS: int32_t = 7;
+static APP_CMD_SAVE_STATE: int32_t = 12;
+
+/// Process the next main command.
+// Application lifecycle: APP_CMD_START, APP_CMD_RESUME, APP_CMD_INPUT_CHANGED,
+// APP_CMD_INIT_WINDOW, APP_CMD_GAINED_FOCUS, ...,
+// APP_CMD_SAVE_STATE, APP_CMD_PAUSE, APP_CMD_LOST_FOCUS, APP_CMD_TERM_WINDOW,
+// APP_CMD_STOP.
+#[no_mangle]
+pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
+  let engine_ptr = unsafe { (*app).user_data as *mut Engine };
+  if engine_ptr.is_null() {
+    fail!("Engine pointer is null");
+  }
+  let engine: &mut Engine = unsafe { mem::transmute(engine_ptr) };
+
+  match command {
+    APP_CMD_INIT_WINDOW => {
+      // The window is being shown, get it ready.
+      if unsafe { !(*engine.app).window.is_null() } {
+        init_display(engine);
+        draw_frame(engine);
+      }
+    },
+    APP_CMD_TERM_WINDOW => {
+      // The window is being hidden or closed, clean it up.
+      term_display(engine);
+    },
+    APP_CMD_GAINED_FOCUS => {
+      // When our app gains focus, we start monitoring the accelerometer.
+      if !engine.accelerometer_sensor.is_null() {
+        match sensor::enable_sensor(engine.sensor_event_queue, engine.accelerometer_sensor) {
+          Ok(_) => (),
+          Err(e) => {
+            log::e_f(format!("enable_sensor failed: {}", e));
+            fail!();
+          }
+        };
+        // Request 60 events per second, in micros.
+        match sensor::set_event_rate(engine.sensor_event_queue, engine.accelerometer_sensor,
+          1000 * 1000 / 60) {
+          Ok(_) => (),
+          Err(e) => {
+            log::e_f(format!("set_event_rate failed: {}", e));
+            fail!();
+          }
+        };
+      }
+    },
+    APP_CMD_LOST_FOCUS => {
+      // When our app loses focus, we stop monitoring the accelerometer.
+      // This is to avoid consuming battery while not being used.
+      if !engine.accelerometer_sensor.is_null() {
+        match sensor::disable_sensor(engine.sensor_event_queue, engine.accelerometer_sensor) {
+          Ok(_) => (),
+          Err(e) => {
+            log::e_f(format!("disable_sensor failed: {}", e));
+            fail!();
+          }
+        }
+      }
+      // Also stop animating.
+      engine.animating = 0;
+      draw_frame(engine);
+    },
+    APP_CMD_SAVE_STATE => {
+      // The system has asked us to save our current state.  Do so.
+      // This leaks memory every time the command is processed.
+      let size = mem::size_of::<SavedState>();
+      unsafe {
+        (*engine.app).saved_state = malloc(size as size_t);
+        ptr::copy_memory((*engine.app).saved_state, &engine.state as *const SavedState as *const c_void, size);
+        (*engine.app).saved_state_size = size as size_t;
+      }
+    },
+    _ => (),
   }
 }
