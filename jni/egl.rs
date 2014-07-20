@@ -304,6 +304,26 @@ pub fn query_surface(display: Display, surface: Surface, attribute: Int) -> Resu
   }
 }
 
+pub fn swap_buffers(display: Display, surface: Surface) -> Result<(), Error> {
+  let res = unsafe {
+    eglSwapBuffers(display, surface)
+  };
+  match res {
+    TRUE => Ok(()),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_SURFACE => Err(BadSurface),
+        CONTEXT_LOST => Err(ContextLost),
+        _ => fail!("Unknown error from eglSwapBuffers(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglSwapBuffers(): {}", res),
+  }
+}
+
 extern {
   fn eglGetDisplay(display_id: NativeDisplayType) -> Display;
   fn eglInitialize(display: Display, major: *mut Int, minor: *mut Int) -> Boolean;
@@ -315,4 +335,5 @@ extern {
   fn eglCreateContext(display: Display, config: Config, share_context: Context, attrib_list: *const Int) -> Context;
   fn eglMakeCurrent(display: Display, draw: Surface, read: Surface, context: Context) -> Boolean;
   fn eglQuerySurface(display: Display, surface: Surface, attribute: Int, value: *mut Int) -> Boolean;
+  fn eglSwapBuffers(display: Display, surface: Surface) -> Boolean;
 }

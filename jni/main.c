@@ -59,23 +59,7 @@ struct engine {
 
 /* Functions implemented in Rust. */
 extern init_display(struct engine* engine);
-
-/**
- * Just the current frame in the display.
- */
-static void engine_draw_frame(struct engine* engine) {
-    if (engine->display == NULL) {
-        // No display.
-        return;
-    }
-
-    // Just fill the screen with a color.
-    glClearColor(((float)engine->state.x)/engine->width, engine->state.angle,
-            ((float)engine->state.y)/engine->height, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    eglSwapBuffers(engine->display, engine->surface);
-}
+extern draw_frame(struct engine* engine);
 
 /**
  * Tear down the EGL context currently associated with the display.
@@ -127,7 +111,7 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
             // The window is being shown, get it ready.
             if (engine->app->window != NULL) {
                 init_display(engine);
-                engine_draw_frame(engine);
+                draw_frame(engine);
             }
             break;
         case APP_CMD_TERM_WINDOW:
@@ -153,7 +137,7 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
             }
             // Also stop animating.
             engine->animating = 0;
-            engine_draw_frame(engine);
+            draw_frame(engine);
             break;
     }
 }
@@ -234,7 +218,7 @@ void android_main(struct android_app* state) {
 
             // Drawing is throttled to the screen update rate, so there
             // is no need to do timing here.
-            engine_draw_frame(&engine);
+            draw_frame(&engine);
         }
     }
 }

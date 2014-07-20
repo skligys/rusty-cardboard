@@ -112,6 +112,7 @@ struct Engine {
 }
 
 #[no_mangle]
+/// Initialize EGL context for the current display.
 pub extern fn init_display(engine: &mut Engine) -> c_int {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
@@ -225,6 +226,30 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   };
 
   return 0;
+}
+
+#[no_mangle]
+/// Draw the current frame on display.
+pub extern fn draw_frame(engine: &Engine) {
+  if engine.display == 0 as egl::Display {
+    // No display.
+    return;
+  }
+
+  // Just fill the screen with a color.
+  let r = (engine.state.x as f32) / (engine.width as f32);
+  let g = engine.state.angle;
+  let b = (engine.state.y as f32) / (engine.height as f32);
+  gl::clear_color(r, g, b, 1.0);
+
+  match gl::clear(gl::COLOR_BUFFER_BIT) {
+    Ok(()) => (),
+    Err(e) => fail!("gl::clear(gl::COLOR_BUFFER_BIT) failed: {}", e),
+  };
+  match egl::swap_buffers(engine.display, engine.surface) {
+    Ok(()) => (),
+    Err(e) => fail!("egl::swap_buffers() failed: {}", e),
+  };
 }
 
 // Bridges to Android logging.

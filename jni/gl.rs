@@ -1,5 +1,5 @@
 extern crate libc;
-use libc::{c_char, c_uint, uint8_t};
+use libc::{c_char, c_float, c_uint, uint8_t};
 use std::c_str::CString;
 
 type Enum = c_uint;
@@ -30,6 +30,13 @@ static INVALID_OPERATION: Enum = 0x0502;
 static OUT_OF_MEMORY: Enum = 0x0505;
 
 type UByte = uint8_t;
+type Clampf = c_float;
+type Bitfield = c_uint;
+
+// glClear mask bits:
+pub static DEPTH_BUFFER_BIT: Enum = 0x00000100;
+pub static STENCIL_BUFFER_BIT: Enum = 0x00000400;
+pub static COLOR_BUFFER_BIT: Enum = 0x00004000;
 
 #[deriving(Show)]
 enum Error {
@@ -80,9 +87,29 @@ pub fn disable(cap: Enum) -> Result<(), Error> {
   }
 }
 
+pub fn clear_color(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf) {
+  unsafe {
+    glClearColor(red, green, blue, alpha);
+  }
+}
+
+pub fn clear(mask: Bitfield) -> Result<(), Error> {
+  unsafe {
+    glClear(mask);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_VALUE => Err(InvalidValue),
+    _ => fail!("Unknown error from glClear(): {}", err),
+  }
+}
+
 extern {
   fn glGetString(name: Enum) -> *const UByte;
   fn glGetError() -> Enum;
   fn glEnable(cap: Enum);
   fn glDisable(cap: Enum);
+  fn glClearColor(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf);
+  fn glClear(mask: Bitfield);
 }
