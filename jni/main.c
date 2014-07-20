@@ -61,20 +61,7 @@ struct engine {
 extern int init_display(struct engine* engine);
 extern void draw_frame(struct engine* engine);
 extern void term_display(struct engine* engine);
-
-/**
- * Process the next input event.
- */
-static int32_t engine_handle_input(struct android_app* app, AInputEvent* event) {
-    struct engine* engine = (struct engine*)app->userData;
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
-        engine->animating = 1;
-        engine->state.x = AMotionEvent_getX(event, 0);
-        engine->state.y = AMotionEvent_getY(event, 0);
-        return 1;
-    }
-    return 0;
-}
+extern int32_t handle_input(struct android_app* app, AInputEvent* event);
 
 /**
  * Process the next main command.
@@ -139,7 +126,7 @@ void android_main(struct android_app* state) {
     memset(&engine, 0, sizeof(engine));
     state->userData = &engine;
     state->onAppCmd = engine_handle_cmd;
-    state->onInputEvent = engine_handle_input;
+    state->onInputEvent = handle_input;
     engine.app = state;
 
     // Prepare to monitor accelerometer

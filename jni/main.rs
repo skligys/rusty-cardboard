@@ -1,11 +1,13 @@
 #![feature(macro_rules)]
 
 extern crate libc;
-use libc::{c_float, c_int, c_void, size_t};
+use libc::{c_float, c_int, c_void, int32_t, size_t};
 use native_window::ANativeWindow;
+use std::mem;
 
 mod egl;
 mod gl;
+mod input;
 mod native_window;
 mod log;
 
@@ -20,22 +22,30 @@ macro_rules! gl_try( ($n: expr, $e: expr) => (
   }
 ))
 
-// TODO: implement.
-struct ANativeActivity {
-  dummy: *const c_void,
-}
-// TODO: implement.
+/**
+ * This structure defines the native side of an android.app.NativeActivity.
+ * It is created by the framework, and handed to the application's native
+ * code as it is being launched.
+ */
+struct ANativeActivity;
+
+/// Opaque structure representing Android configuration.
 struct AConfiguration {
   dummy: *const c_void,
 }
-// TODO: implement.
-struct ALooper {
-  dummy: *const c_void,
-}
-// TODO: implement.
-struct AInputQueue {
-  dummy: *const c_void,
-}
+
+/**
+ * A looper is the state tracking an event loop for a thread.
+ * Loopers do not define event structures or other such things; rather
+ * they are a lower-level facility to attach one or more discrete objects
+ * listening for an event.  An "event" here is simply data available on
+ * a file descriptor: each attached object has an associated file descriptor,
+ * and waiting for "events" means (internally) polling on all of these file
+ * descriptors until one or more of them have data available.
+ *
+ * A thread can have only one ALooper associated with it.
+*/
+struct ALooper;
 
 struct ARect {
   left: i32,
@@ -73,7 +83,7 @@ struct AndroidApp {
   // The ALooper associated with the app's thread.
   looper: *const ALooper,
   // When non-NULL, this is the input queue from which the app will receive user input events.
-  input_queue: *const AInputQueue,
+  input_queue: *const input::AInputQueue,
   // When non-NULL, this is the window surface that the app can draw in.
   window: *const ANativeWindow,
   // Current content rectangle of the window; this is the area where the window's content should be
@@ -88,18 +98,12 @@ struct AndroidApp {
   // Plus some private implementation details.
 }
 
-// TODO: implement.
-struct ASensorManager {
-  dummy: *const c_void,
-}
-// TODO: implement.
-struct ASensor {
-  dummy: *const c_void,
-}
-// TODO: implement.
-struct ASensorEventQueue {
-  dummy: *const c_void,
-}
+// Opaque structure.
+struct ASensorManager;
+// Opaque structure.
+struct ASensor;
+// Opaque structure.
+struct ASensorEventQueue;
 
 // Saved state data.  Compatible with C.
 struct SavedState {
@@ -235,4 +239,24 @@ pub extern fn term_display(engine: &mut Engine) {
   engine.display = egl::NO_DISPLAY;
   engine.context = egl::NO_CONTEXT;
   engine.surface = egl::NO_SURFACE;
+}
+
+/// Process the next input event.
+#[no_mangle]
+pub extern fn handle_input(app: *mut AndroidApp, event: *const input::AInputEvent) -> int32_t {
+  let engine_ptr = unsafe { (*app).user_data as *mut Engine };
+  if engine_ptr.is_null() {
+    fail!("Engine pointer is null");
+  }
+  let engine: &mut Engine = unsafe { mem::transmute(engine_ptr) };
+
+  match input::get_event_type(event) {
+    input::Key => 0,
+    input::Motion => {
+      engine.animating = 1;
+      engine.state.x = input::get_motion_event_x(event, 0) as i32;
+      engine.state.y = input::get_motion_event_y(event, 0) as i32;
+      return 1;
+    },
+  }
 }
