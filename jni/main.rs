@@ -1,10 +1,11 @@
 extern crate libc;
-use libc::{c_char, c_float, c_int, c_void, size_t};
+use libc::{c_float, c_int, c_void, size_t};
 use native_window::ANativeWindow;
 
 mod egl;
 mod gl;
 mod native_window;
+mod log;
 
 // TODO: implement.
 struct ANativeActivity {
@@ -111,14 +112,17 @@ struct Engine {
   state: SavedState,
 }
 
-#[no_mangle]
 /// Initialize EGL context for the current display.
+#[no_mangle]
 pub extern fn init_display(engine: &mut Engine) -> c_int {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   match egl::initialize(display) {
     Ok(_) => (),
-    Err(e) => fail!("egl::initialize() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::initialize() failed: {}", e));
+      fail!();
+    },
   };
 
   // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
@@ -134,10 +138,14 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   let mut configs = vec!(0 as egl::Config);
   match egl::choose_config(display, attribs_config, &mut configs) {
     Ok(_) => (),
-    Err(e) => fail!("egl::choose_config() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::choose_config() failed: {}", e));
+      fail!();
+    },
   }
   if configs.len() == 0 {
-    fail!("choose_config() did not find any configurations");
+    log::e("choose_config() did not find any configurations");
+    fail!();
   }
   let config = *configs.get(0);
 
@@ -146,7 +154,10 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   // reconfigure the ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
   let format = match egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID) {
     Ok(vid) => vid,
-    Err(e) => fail!("egl::get_config_attrib() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::get_config_attrib() failed: {}", e));
+      fail!();
+    },
   };
 
   let window = unsafe { (*engine.app).window };
@@ -154,7 +165,10 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
 
   let surface = match egl::create_window_surface(display, config, window) {
     Ok(srf) => srf,
-    Err(e) => fail!("egl::create_window_surface() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::create_window_surface() failed: {}", e));
+      fail!();
+    },
   };
 
   let attribs_context = [
@@ -163,50 +177,74 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   ];
   let context = match egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, attribs_context) {
     Ok(ctx) => ctx,
-    Err(e) => fail!("egl::create_context() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::create_context() failed: {}", e));
+      fail!();
+    },
   };
 
   match egl::make_current(display, surface, surface, context) {
     Ok(()) => (),
     Err(_) => {
-      logw("Unable to egl::make_current");
+      log::w("Unable to egl::make_current");
       return -1;
     }
   }
 
   let version = match gl::get_string(gl::VERSION) {
     Ok(s) => s,
-    Err(e) => fail!("gl::get_string(gl::VERSION) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::get_string(gl::VERSION) failed: {}", e));
+      fail!();
+    },
   };
   let vendor = match gl::get_string(gl::VENDOR) {
     Ok(s) => s,
-    Err(e) => fail!("gl::get_string(gl::VENDOR) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::get_string(gl::VENDOR) failed: {}", e));
+      fail!();
+    },
   };
   let renderer = match gl::get_string(gl::RENDERER) {
     Ok(s) => s,
-    Err(e) => fail!("gl::get_string(gl::RENDERER) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::get_string(gl::RENDERER) failed: {}", e));
+      fail!();
+    },
   };
   let sl_version = match gl::get_string(gl::SHADING_LANGUAGE_VERSION) {
     Ok(s) => s,
-    Err(e) => fail!("gl::get_string(gl::SHADING_LANGUAGE_VERSION) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::get_string(gl::SHADING_LANGUAGE_VERSION) failed: {}", e));
+      fail!();
+    },
   };
-  logi_f(format!("OpenGL version: \"{}\", vendor: \"{}\", renderer: \"{}\", SL version: \"{}\"",
+  log::i_f(format!("OpenGL version: \"{}\", vendor: \"{}\", renderer: \"{}\", SL version: \"{}\"",
     version.as_str().unwrap(), vendor.as_str().unwrap(), renderer.as_str().unwrap(),
     sl_version.as_str().unwrap()));
 
   let extensions = match gl::get_string(gl::EXTENSIONS) {
     Ok(s) => s,
-    Err(e) => fail!("gl::get_string(gl::EXTENSIONS) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::get_string(gl::EXTENSIONS) failed: {}", e));
+      fail!();
+    },
   };
-  logi_f(format!("OpenGL extensions: \"{}\"", extensions.as_str().unwrap()));
+  log::i_f(format!("OpenGL extensions: \"{}\"", extensions.as_str().unwrap()));
 
   let w = match egl::query_surface(display, surface, egl::WIDTH) {
     Ok(i) => i,
-    Err(e) => fail!("egl::query_surface(egl::WIDTH) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::query_surface(egl::WIDTH) failed: {}", e));
+      fail!();
+    },
   };
   let h = match egl::query_surface(display, surface, egl::HEIGHT) {
     Ok(i) => i,
-    Err(e) => fail!("egl::query_surface(egl::HEIGHT) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::query_surface(egl::HEIGHT) failed: {}", e));
+      fail!();
+    },
   };
 
   engine.display = display;
@@ -218,18 +256,24 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
 
   match gl::enable(gl::CULL_FACE) {
     Ok(()) => (),
-    Err(e) => fail!("gl::enable(gl::CULL_FACE) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::enable(gl::CULL_FACE) failed: {}", e));
+      fail!();
+    },
   };
   match gl::disable(gl::DEPTH_TEST) {
     Ok(()) => (),
-    Err(e) => fail!("gl::disable(gl::DEPTH_TEST) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::disable(gl::DEPTH_TEST) failed: {}", e));
+      fail!();
+    },
   };
 
   return 0;
 }
 
-#[no_mangle]
 /// Draw the current frame on display.
+#[no_mangle]
 pub extern fn draw_frame(engine: &Engine) {
   if engine.display == 0 as egl::Display {
     // No display.
@@ -244,44 +288,16 @@ pub extern fn draw_frame(engine: &Engine) {
 
   match gl::clear(gl::COLOR_BUFFER_BIT) {
     Ok(()) => (),
-    Err(e) => fail!("gl::clear(gl::COLOR_BUFFER_BIT) failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("gl::clear(gl::COLOR_BUFFER_BIT) failed: {}", e));
+      fail!();
+    },
   };
   match egl::swap_buffers(engine.display, engine.surface) {
     Ok(()) => (),
-    Err(e) => fail!("egl::swap_buffers() failed: {}", e),
+    Err(e) => {
+      log::e_f(format!("egl::swap_buffers() failed: {}", e));
+      fail!();
+    },
   };
-}
-
-// Bridges to Android logging.
-fn logi(msg: &str) {
-  let c_string = msg.to_c_str();
-  unsafe {
-    c_logi_string(c_string.as_ptr());
-  }
-}
-
-fn logi_f(msg: String) {
-  let c_string = msg.to_c_str();
-  unsafe {
-    c_logi_string(c_string.as_ptr());
-  }
-}
-
-fn logw(msg: &str) {
-  let c_string = msg.to_c_str();
-  unsafe {
-    c_logw_string(c_string.as_ptr());
-  }
-}
-
-fn logw_f(msg: String) {
-  let c_string = msg.to_c_str();
-  unsafe {
-    c_logw_string(c_string.as_ptr());
-  }
-}
-
-extern {
-  fn c_logi_string(msg: *const c_char);
-  fn c_logw_string(msg: *const c_char);
 }

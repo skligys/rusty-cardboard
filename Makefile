@@ -24,7 +24,7 @@ bin/RustyCardboard-release.apk: build.xml jni/android_log_glue.c jni/main.c jni/
 
 rust: jni/librust.a
 
-jni/librust.a: jni/egl.rs jni/gl.rs jni/main.rs jni/native_window.rs
+jni/librust.a: jni/egl.rs jni/gl.rs jni/log.rs jni/main.rs jni/native_window.rs
 	$(PRE_RUSTC) $(RUSTC) --target=arm-linux-androideabi jni/main.rs -C linker=$(ANDROID_NDK_STANDALONE_HOME)/bin/arm-linux-androideabi-gcc --crate-type=staticlib --opt-level=3 -o jni/librust.a
 
 clean:
