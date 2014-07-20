@@ -301,3 +301,47 @@ pub extern fn draw_frame(engine: &Engine) {
     },
   };
 }
+
+/// Tear down the EGL context currently associated with the display.
+#[no_mangle]
+pub extern fn term_display(engine: &mut Engine) {
+  if engine.display != egl::NO_DISPLAY {
+    match egl::make_current(engine.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT) {
+      Ok(()) => (),
+      Err(e) => {
+        log::e_f(format!("egl::make_current() failed: {}", e));
+        fail!();
+      },
+    };
+    if engine.context != egl::NO_CONTEXT {
+      match egl::destroy_context(engine.display, engine.context) {
+        Ok(()) => (),
+        Err(e) => {
+          log::e_f(format!("egl::destroy_context() failed: {}", e));
+          fail!();
+        },
+      };
+    }
+    if engine.surface != egl::NO_SURFACE {
+      match egl::destroy_surface(engine.display, engine.surface) {
+        Ok(()) => (),
+        Err(e) => {
+          log::e_f(format!("egl::destroy_surface() failed: {}", e));
+          fail!();
+        },
+      };
+    }
+    match egl::terminate(engine.display) {
+      Ok(()) => (),
+      Err(e) => {
+        log::e_f(format!("egl::terminate() failed: {}", e));
+        fail!();
+      },
+    }
+  }
+
+  engine.animating = 0;
+  engine.display = egl::NO_DISPLAY;
+  engine.context = egl::NO_CONTEXT;
+  engine.surface = egl::NO_SURFACE;
+}

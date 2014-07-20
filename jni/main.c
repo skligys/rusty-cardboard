@@ -58,28 +58,9 @@ struct engine {
 };
 
 /* Functions implemented in Rust. */
-extern init_display(struct engine* engine);
-extern draw_frame(struct engine* engine);
-
-/**
- * Tear down the EGL context currently associated with the display.
- */
-static void engine_term_display(struct engine* engine) {
-    if (engine->display != EGL_NO_DISPLAY) {
-        eglMakeCurrent(engine->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (engine->context != EGL_NO_CONTEXT) {
-            eglDestroyContext(engine->display, engine->context);
-        }
-        if (engine->surface != EGL_NO_SURFACE) {
-            eglDestroySurface(engine->display, engine->surface);
-        }
-        eglTerminate(engine->display);
-    }
-    engine->animating = 0;
-    engine->display = EGL_NO_DISPLAY;
-    engine->context = EGL_NO_CONTEXT;
-    engine->surface = EGL_NO_SURFACE;
-}
+extern int init_display(struct engine* engine);
+extern void draw_frame(struct engine* engine);
+extern void term_display(struct engine* engine);
 
 /**
  * Process the next input event.
@@ -116,7 +97,7 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
             break;
         case APP_CMD_TERM_WINDOW:
             // The window is being hidden or closed, clean it up.
-            engine_term_display(engine);
+            term_display(engine);
             break;
         case APP_CMD_GAINED_FOCUS:
             // When our app gains focus, we start monitoring the accelerometer.
@@ -204,7 +185,7 @@ void android_main(struct android_app* state) {
 
             // Check if we are exiting.
             if (state->destroyRequested != 0) {
-                engine_term_display(&engine);
+                term_display(&engine);
                 return;
             }
         }

@@ -5,12 +5,13 @@ use std::vec::Vec;
 use native_window::ANativeWindow;
 
 pub type Display = *const c_void;
+pub static NO_DISPLAY: Display = 0 as Display;
 
 type NativeDisplayType = *const c_void;
 pub static DEFAULT_DISPLAY: NativeDisplayType = 0 as NativeDisplayType;
 
 pub type Surface = *const c_void;
-static NO_SURFACE: Surface = 0 as Surface;
+pub static NO_SURFACE: Surface = 0 as Surface;
 pub type Context = *const c_void;
 pub static NO_CONTEXT: Context = 0 as Context;
 
@@ -324,6 +325,61 @@ pub fn swap_buffers(display: Display, surface: Surface) -> Result<(), Error> {
   }
 }
 
+pub fn destroy_context(display: Display, context: Context) -> Result<(), Error> {
+  let res = unsafe {
+    eglDestroyContext(display, context)
+  };
+  match res {
+    TRUE => Ok(()),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_CONTEXT => Err(BadContext),
+        _ => fail!("Unknown error from eglDestroyContext(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglDestroyContext(): {}", res),
+  }
+}
+
+pub fn destroy_surface(display: Display, surface: Surface) -> Result<(), Error> {
+  let res = unsafe {
+    eglDestroySurface(display, surface)
+  };
+  match res {
+    TRUE => Ok(()),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        NOT_INITIALIZED => Err(NotInitialized),
+        BAD_DISPLAY => Err(BadDisplay),
+        BAD_SURFACE => Err(BadSurface),
+        _ => fail!("Unknown error from eglDestroySurface(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglDestroySurface(): {}", res),
+  }
+}
+
+pub fn terminate(display: Display) -> Result<(), Error> {
+  let res = unsafe {
+    eglTerminate(display)
+  };
+  match res {
+    TRUE => Ok(()),
+    FALSE => {
+      let err = unsafe { eglGetError() } as Boolean;
+      match err {
+        BAD_DISPLAY => Err(BadDisplay),
+        _ => fail!("Unknown error from eglTerminate(): {}", err),
+      }
+    },
+    _ => fail!("Unknown return value from eglTerminate(): {}", res),
+  }
+}
+
 extern {
   fn eglGetDisplay(display_id: NativeDisplayType) -> Display;
   fn eglInitialize(display: Display, major: *mut Int, minor: *mut Int) -> Boolean;
@@ -336,4 +392,7 @@ extern {
   fn eglMakeCurrent(display: Display, draw: Surface, read: Surface, context: Context) -> Boolean;
   fn eglQuerySurface(display: Display, surface: Surface, attribute: Int, value: *mut Int) -> Boolean;
   fn eglSwapBuffers(display: Display, surface: Surface) -> Boolean;
+  fn eglDestroyContext(display: Display, context: Context) -> Boolean;
+  fn eglDestroySurface(display: Display, surface: Surface) -> Boolean;
+  fn eglTerminate(display: Display) -> Boolean;
 }
