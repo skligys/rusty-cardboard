@@ -1,6 +1,7 @@
 extern crate libc;
 use libc::{c_char, c_float, c_uint, uint8_t};
 use std::c_str::CString;
+use std::ptr;
 
 type Enum = c_uint;
 
@@ -51,7 +52,7 @@ enum Error {
 pub fn get_string(name: Enum) -> Result<CString, Error> {
   unsafe {
     let c_ptr = glGetString(name) as *const c_char;
-    if c_ptr != 0 as *const c_char {
+    if c_ptr != ptr::null() {
       // false because we don't own this string, it is static
       return Ok(CString::new(c_ptr, false));
     }

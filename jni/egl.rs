@@ -1,5 +1,6 @@
 extern crate libc;
 use libc::{c_uint, c_void};
+use std::ptr;
 use std::result::Result;
 use std::vec::Vec;
 use native_window::ANativeWindow;
@@ -84,7 +85,7 @@ enum Error {
 
 pub fn initialize(display: Display) -> Result<(), Error> {
   let res = unsafe {
-    eglInitialize(display, 0 as *mut i32, 0 as *mut i32)
+    eglInitialize(display, ptr::mut_null(), ptr::mut_null())
   };
   match res {
     TRUE => Ok(()),
@@ -170,7 +171,7 @@ pub fn get_config_attrib(display: Display, config: Config, attribute: Int) -> Re
 pub fn create_window_surface(display: Display, config: Config, window: NativeWindowType) ->
   Result<Surface, Error> {
   let res = unsafe {
-    eglCreateWindowSurface(display, config, window, 0 as *const Int)
+    eglCreateWindowSurface(display, config, window, ptr::null())
   };
   if res != NO_SURFACE {
     Ok(res)
@@ -216,9 +217,9 @@ pub fn create_window_surface_with_attribs(display: Display, config: Config, wind
 pub fn create_context(display: Display, config: Config, share_context: Context) ->
   Result<Context, Error> {
   let res = unsafe {
-    eglCreateContext(display, config, share_context, 0 as *const Int)
+    eglCreateContext(display, config, share_context, ptr::null())
   };
-  if res != 0 as Context {
+  if res != ptr::null() {
     Ok(res)
   } else {
     let err = unsafe { eglGetError() } as Boolean;
@@ -240,7 +241,7 @@ pub fn create_context_with_attribs(display: Display, config: Config, share_conte
   let res = unsafe {
     eglCreateContext(display, config, share_context, attribs.as_ptr())
   };
-  if res != 0 as Context {
+  if res != ptr::null() {
     Ok(res)
   } else {
     let err = unsafe { eglGetError() } as Boolean;

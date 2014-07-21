@@ -139,7 +139,7 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
     egl::RED_SIZE, 8,
     egl::NONE
   ];
-  let mut configs = vec!(0 as egl::Config);
+  let mut configs = vec!(ptr::null());
   gl_try!("egl::choose_config", egl::choose_config(display, attribs_config, &mut configs));
   if configs.len() == 0 {
     log::e("choose_config() did not find any configurations");
@@ -198,7 +198,7 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
 /// Draw the current frame on display.
 #[no_mangle]
 pub extern fn draw_frame(engine: &Engine) {
-  if engine.display == 0 as egl::Display {
+  if engine.display == ptr::null() {
     // No display.
     return;
   }
