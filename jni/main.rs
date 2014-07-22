@@ -3,6 +3,7 @@
 extern crate libc;
 use libc::{c_float, c_int, c_void, int32_t, malloc, size_t};
 use native_window::ANativeWindow;
+use std::default::Default;
 use std::mem;
 use std::ptr;
 
@@ -33,19 +34,6 @@ struct ANativeActivity;
 
 /// Opaque structure representing Android configuration.
 struct AConfiguration;
-
-/**
- * A looper is the state tracking an event loop for a thread.
- * Loopers do not define event structures or other such things; rather
- * they are a lower-level facility to attach one or more discrete objects
- * listening for an event.  An "event" here is simply data available on
- * a file descriptor: each attached object has an associated file descriptor,
- * and waiting for "events" means (internally) polling on all of these file
- * descriptors until one or more of them have data available.
- *
- * A thread can have only one ALooper associated with it.
-*/
-struct ALooper;
 
 struct ARect {
   left: i32,
@@ -80,8 +68,8 @@ struct AndroidApp {
   // the information here.  In that case the memory will be freed for you later.
   saved_state: *mut c_void,
   saved_state_size: size_t,
-  // The ALooper associated with the app's thread.
-  looper: *const ALooper,
+  // The looper associated with the app's thread.
+  looper: *const sensor::ALooper,
   // When non-NULL, this is the input queue from which the app will receive user input events.
   input_queue: *const input::Queue,
   // When non-NULL, this is the window surface that the app can draw in.
@@ -105,6 +93,12 @@ struct SavedState {
   y: i32,
 }
 
+impl Default for SavedState {
+  fn default() -> SavedState {
+    SavedState { angle: 0.0, x: 0, y: 0 }
+  }
+}
+
 // Shared state for our app.  Compatible with C.
 struct Engine {
   app: *mut AndroidApp,
@@ -120,6 +114,19 @@ struct Engine {
   width: i32,
   height: i32,
   state: SavedState,
+}
+
+impl Default for Engine {
+  fn default() -> Engine {
+    Engine { app: ptr::mut_null(), sensor_manager: ptr::null(),
+      accelerometer_sensor: ptr::null(),
+      sensor_event_queue: ptr::mut_null(),
+      animating: 0,
+      display: egl::NO_DISPLAY, surface: egl::NO_SURFACE, context: egl::NO_CONTEXT,
+      width: 0, height: 0,
+      state: Default::default(),
+    }
+  }
 }
 
 /// Initialize EGL context for the current display.
@@ -241,7 +248,7 @@ pub extern fn handle_input(app: *mut AndroidApp, event: *const input::Event) -> 
   if engine_ptr.is_null() {
     fail!("Engine pointer is null");
   }
-  let engine: &mut Engine = unsafe { mem::transmute(engine_ptr) };
+  let engine: &mut Engine = unsafe { &mut *engine_ptr };
 
   match input::get_event_type(event) {
     input::Key => 0,
@@ -272,7 +279,7 @@ pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
   if engine_ptr.is_null() {
     fail!("Engine pointer is null");
   }
-  let engine: &mut Engine = unsafe { mem::transmute(engine_ptr) };
+  let engine: &mut Engine = unsafe { &mut *engine_ptr };
 
   match command {
     APP_CMD_INIT_WINDOW => {
@@ -325,14 +332,132 @@ pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
     },
     APP_CMD_SAVE_STATE => {
       // The system has asked us to save our current state.  Do so.
-      // This leaks memory every time the command is processed.
-      let size = mem::size_of::<SavedState>();
-      unsafe {
-        (*engine.app).saved_state = malloc(size as size_t);
-        ptr::copy_memory((*engine.app).saved_state, &engine.state as *const SavedState as *const c_void, size);
-        (*engine.app).saved_state_size = size as size_t;
-      }
+      // This will leak memory each time since we don't free existing engine.aoo.saved_state.
+      let app: &mut AndroidApp = unsafe { &mut *engine.app };
+      let size = mem::size_of::<SavedState>() as size_t;
+      app.saved_state = unsafe { malloc(size) };
+
+      let app_saved_state: &mut SavedState = unsafe { &mut *(app.saved_state as *mut SavedState) };
+      app_saved_state.angle = engine.state.angle;
+      app_saved_state.x = engine.state.x;
+      app_saved_state.y = engine.state.y;
+
+      app.saved_state_size = size;
     },
     _ => (),
   }
+}
+
+/**
+ * Data associated with an ALooper fd that will be returned as the "data" when that source has
+ * data ready.
+ */
+struct AndroidPollSource {
+  /// The identifier of this source.  May be LOOPER_ID_MAIN or LOOPER_ID_INPUT.
+  id: int32_t,
+  /// The android_app this ident is associated with.
+  app: *const AndroidApp,
+  /// Function to call to perform the standard processing of data from this source.
+  process: extern "C" fn (app: *mut AndroidApp, source: *const AndroidPollSource),
+}
+
+#[no_mangle]
+pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine) {
+  let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+  let engine: &mut Engine = unsafe { &mut *engine_ptr };
+
+  // Loop waiting for stuff to do.
+  loop {
+    'inner: loop {
+      // Block polling when not animating.
+      let poll_timeout = if engine.animating != 0 { 0 } else { -1 };
+      match sensor::poll_all(poll_timeout) {
+        Err(_) => break 'inner,
+        Ok(poll_result) => {
+          // Process this event.
+          if !poll_result.data.is_null() {
+            let source: &AndroidPollSource = unsafe {
+              &*(poll_result.data as *const AndroidPollSource)
+            };
+            let process = source.process;
+            process(app_ptr, source as *const AndroidPollSource);
+          }
+
+          // If the sensor has data, process it now.
+          if poll_result.id == sensor::LOOPER_ID_USER {
+            if !engine.accelerometer_sensor.is_null() {
+              let sensor_event: sensor::Event = Default::default();
+              'sensor: loop {
+                match sensor::get_event(engine.sensor_event_queue) {
+                  Ok(ev) => {
+                    // NYI: Process sensor event.
+                    ()
+                  },
+                  Err(e) => break 'sensor,
+                }
+              }
+            }
+          }
+
+          // Check if should exit.
+          if app.destroy_requested != 0 {
+            term_display(engine);
+            return;
+          }
+        }
+      }
+    }
+
+    if engine.animating != 0 {
+      // Done processing events; draw next animation frame.
+      engine.state.angle += 0.01;
+      if engine.state.angle > 1.0 {
+        engine.state.angle = 0.0;
+      }
+
+      // Drawing is throttled to the screen update rate, so there is no need to do timing here.
+      draw_frame(engine);
+    }
+  }
+}
+
+/**
+ * This is the main entry point of a native application that is using android_native_app_glue.
+ * It runs in its own thread, with its own event loop for receiving input events and doing other
+ * things.
+ */
+#[no_mangle]
+pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
+  log::i("-------------------------------------------------------------------");
+
+  // Make sure native application glue isn't stripped.
+  unsafe {
+    app_dummy();
+  }
+
+  let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+  let mut engine = Engine {
+    app: app_ptr,
+    sensor_manager: sensor::get_instance(),
+    accelerometer_sensor: sensor::get_default_sensor(sensor::TYPE_ACCELEROMETER),
+    sensor_event_queue: sensor::create_event_queue(app.looper, sensor::LOOPER_ID_USER),
+    state: if app.saved_state.is_null() {
+      Default::default()
+    } else {
+      // We are starting with a previous saved state; restore from it.
+      let app_saved_state: &SavedState = unsafe { &*(app.saved_state as *const SavedState) };
+      SavedState { angle: app_saved_state.angle, x: app_saved_state.x, y: app_saved_state.y }
+    },
+    ..Default::default()};
+
+  // Notify the system about our custom data and callbacks.
+  app.user_data = &engine as *const Engine as *const c_void;
+  app.on_app_cmd = handle_cmd as *const c_void;
+  app.on_input_event = handle_input as *const c_void;
+
+  rust_event_loop(app_ptr, &mut engine as *mut Engine);
+}
+
+extern {
+  fn app_dummy();
 }

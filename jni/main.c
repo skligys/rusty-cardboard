@@ -63,13 +63,15 @@ extern void draw_frame(struct engine* engine);
 extern void term_display(struct engine* engine);
 extern int32_t handle_input(struct android_app* app, AInputEvent* event);
 extern void handle_cmd(struct android_app* app, int32_t cmd);
+extern void rust_android_main(struct android_app* app);
+extern void rust_event_loop(struct android_app* app, struct engine* engine);
 
 /**
  * This is the main entry point of a native application that is using
  * android_native_app_glue.  It runs in its own thread, with its own
  * event loop for receiving input events and doing other things.
  */
-void android_main(struct android_app* state) {
+void android_main(struct android_app* app) {
     struct engine engine;
 
     LOGI("-------------------------------------------------------------------");
@@ -78,70 +80,23 @@ void android_main(struct android_app* state) {
     app_dummy();
 
     memset(&engine, 0, sizeof(engine));
-    state->userData = &engine;
-    state->onAppCmd = handle_cmd;
-    state->onInputEvent = handle_input;
-    engine.app = state;
+    app->userData = &engine;
+    app->onAppCmd = handle_cmd;
+    app->onInputEvent = handle_input;
+    engine.app = app;
 
     // Prepare to monitor accelerometer
     engine.sensorManager = ASensorManager_getInstance();
     engine.accelerometerSensor = ASensorManager_getDefaultSensor(engine.sensorManager,
             ASENSOR_TYPE_ACCELEROMETER);
     engine.sensorEventQueue = ASensorManager_createEventQueue(engine.sensorManager,
-            state->looper, LOOPER_ID_USER, NULL, NULL);
+            app->looper, LOOPER_ID_USER, NULL, NULL);
 
-    if (state->savedState != NULL) {
+    if (app->savedState != NULL) {
         // We are starting with a previous saved state; restore from it.
-        engine.state = *(struct saved_state*)state->savedState;
+        engine.state = *(struct saved_state*)app->savedState;
     }
 
-    // loop waiting for stuff to do.
-
-    while (1) {
-        // Read all pending events.
-        int ident;
-        int events;
-        struct android_poll_source* source;
-
-        // If not animating, we will block forever waiting for events.
-        // If animating, we loop until all events are read, then continue
-        // to draw the next frame of animation.
-        while ((ident=ALooper_pollAll(engine.animating ? 0 : -1, NULL, &events,
-                (void**)&source)) >= 0) {
-
-            // Process this event.
-            if (source != NULL) {
-                source->process(state, source);
-            }
-
-            // If a sensor has data, process it now.
-            if (ident == LOOPER_ID_USER) {
-                if (engine.accelerometerSensor != NULL) {
-                    ASensorEvent event;
-                    while (ASensorEventQueue_getEvents(engine.sensorEventQueue,
-                            &event, 1) > 0) {
-                    }
-                }
-            }
-
-            // Check if we are exiting.
-            if (state->destroyRequested != 0) {
-                term_display(&engine);
-                return;
-            }
-        }
-
-        if (engine.animating) {
-            // Done with events; draw next animation frame.
-            engine.state.angle += .01f;
-            if (engine.state.angle > 1) {
-                engine.state.angle = 0;
-            }
-
-            // Drawing is throttled to the screen update rate, so there
-            // is no need to do timing here.
-            draw_frame(&engine);
-        }
-    }
+    rust_event_loop(app, &engine);
 }
 //END_INCLUDE(all)
