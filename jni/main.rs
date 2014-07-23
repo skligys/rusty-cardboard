@@ -111,14 +111,9 @@ impl Default for SavedState {
 
 // Shared state for our app.  Compatible with C.
 pub struct Engine {
-  app: *mut AndroidApp,
-
-  #[allow(dead_code)]
-  sensor_manager: *const sensor::Manager,
   accelerometer_sensor: *const sensor::Sensor,
   sensor_event_queue: *mut sensor::EventQueue,
-
-  animating: c_int,
+  animating: bool,
   display: egl::Display,
   surface: egl::Surface,
   context: egl::Context,
@@ -129,20 +124,170 @@ pub struct Engine {
 
 impl Default for Engine {
   fn default() -> Engine {
-    Engine { app: ptr::mut_null(), sensor_manager: ptr::null(),
+    Engine {
       accelerometer_sensor: ptr::null(),
       sensor_event_queue: ptr::mut_null(),
-      animating: 0,
-      display: egl::NO_DISPLAY, surface: egl::NO_SURFACE, context: egl::NO_CONTEXT,
+      animating: false,
+      display: egl::NO_DISPLAY,
+      surface: egl::NO_SURFACE,
+      context: egl::NO_CONTEXT,
       width: 0, height: 0,
       state: Default::default(),
     }
   }
 }
 
+trait Renderer {
+  /// Initialize the renderer.
+  fn init(&mut self, display: egl::Display, surface: egl::Surface, context: egl::Context, size: (i32, i32));
+  /// Draw a frame.
+  fn draw(&mut self);
+  /// Update for time passed and draw a frame.
+  fn update_draw(&mut self);
+  /// Terminate the renderer.
+  fn term(&mut self);
+  /// Handle touch and key input.  Return true if you handled event, false for any default handling.
+  fn handle_input(&mut self, event: &input::Event) -> bool;
+  /// Handle sensor input.
+  fn handle_sensor(&mut self, event: &sensor::Event);
+  /// Called when window gains input focus.
+  fn gained_focus(&mut self);
+  /// Active when initialized and has focus.
+  fn is_active(&self) -> bool;
+  /// Called when window loses input focus.
+  fn lost_focus(&mut self);
+  /// Called to save application state.  malloc some memory, copy your data into it and return
+  /// together with its size.  Native activity code will free it for you later.
+  fn save_state(&self) -> (size_t, *mut c_void);
+}
+
+impl Renderer for Engine {
+  fn init(&mut self, display: egl::Display, surface: egl::Surface, context: egl::Context, (width, height): (i32, i32)) {
+    self.display = display;
+    self.context = context;
+    self.surface = surface;
+    self.width = width;
+    self.height = height;
+    self.state.angle = 0.0;
+
+    gl_try!("gl::enable(gl::CULL_FACE)", gl::enable(gl::CULL_FACE));
+    gl_try!("gl::disable(gl::DEPTH_TEST)", gl::disable(gl::DEPTH_TEST));
+  }
+
+  fn draw(&mut self) {
+    if self.display == ptr::null() {
+      // No display.
+      return;
+    }
+
+    // Just fill the screen with a color.
+    let r = (self.state.x as f32) / (self.width as f32);
+    let g = self.state.angle;
+    let b = (self.state.y as f32) / (self.height as f32);
+    gl::clear_color(r, g, b, 1.0);
+
+    gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
+    gl_try!("egl::swap_buffers", egl::swap_buffers(self.display, self.surface));
+  }
+
+  fn update_draw(&mut self) {
+    if self.animating {
+      // Done processing events; draw next animation frame.
+      self.state.angle += 0.01;
+      if self.state.angle > 1.0 {
+        self.state.angle = 0.0;
+      }
+
+      // Drawing is throttled to the screen update rate, so there is no need to do timing here.
+      self.draw();
+    }
+  }
+
+  fn term(&mut self) {
+    self.animating = false;
+    self.display = egl::NO_DISPLAY;
+    self.context = egl::NO_CONTEXT;
+    self.surface = egl::NO_SURFACE;
+  }
+
+  // Return true if you handled event, false for any default handling.
+  fn handle_input(&mut self, event: &input::Event) -> bool {
+    match input::get_event_type(event) {
+      input::Key => false,
+      input::Motion => {
+        self.state.x = input::get_motion_event_x(event, 0) as i32;
+        self.state.y = input::get_motion_event_y(event, 0) as i32;
+        return true;
+      },
+    }
+  }
+
+  #[allow(unused_variable)]
+  fn handle_sensor(&mut self, event: &sensor::Event) {
+    // Do nothing.
+  }
+
+  fn gained_focus(&mut self) {
+    self.animating = true;
+
+    // When our app gains focus, we start monitoring the accelerometer.
+    if !self.accelerometer_sensor.is_null() {
+      match sensor::enable_sensor(self.sensor_event_queue, self.accelerometer_sensor) {
+        Ok(_) => (),
+        Err(e) => {
+          log::e_f(format!("enable_sensor failed: {}", e));
+          fail!();
+        }
+      };
+
+      // Request 60 events per second, in micros.
+      match sensor::set_event_rate(self.sensor_event_queue, self.accelerometer_sensor,
+        1000 * 1000 / 60) {
+        Ok(_) => (),
+        Err(e) => {
+          log::e_f(format!("set_event_rate failed: {}", e));
+          fail!();
+        }
+      };
+    }
+  }
+
+  fn is_active(&self) -> bool {
+    self.animating
+  }
+
+  fn lost_focus(&mut self) {
+    // When our app loses focus, we stop monitoring the accelerometer.
+    // This is to avoid consuming battery while not being used.
+    if !self.accelerometer_sensor.is_null() {
+      match sensor::disable_sensor(self.sensor_event_queue, self.accelerometer_sensor) {
+        Ok(_) => (),
+        Err(e) => {
+          log::e_f(format!("disable_sensor failed: {}", e));
+          fail!();
+        }
+      }
+    }
+    // Also stop animating.
+    self.animating = false;
+    self.draw();
+  }
+
+  fn save_state(&self) -> (size_t, *mut c_void) {
+    let size = mem::size_of::<SavedState>() as size_t;
+    let result = unsafe { malloc(size) };
+
+    let saved_state: &mut SavedState = unsafe { &mut *(result as *mut SavedState) };
+    saved_state.angle = self.state.angle;
+    saved_state.x = self.state.x;
+    saved_state.y = self.state.y;
+
+    (size, result as *mut c_void)
+  }
+}
+
 /// Initialize EGL context for the current display.
-#[no_mangle]
-pub extern fn init_display(engine: &mut Engine) -> c_int {
+fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) -> c_int {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   gl_try!("egl::initialize", egl::initialize(display));
@@ -171,7 +316,7 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   let format = gl_try!("egl::get_config_attrib",
     egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
-  let window = unsafe { (*engine.app).window };
+  let window = unsafe { (*app_ptr).window };
   native_window::set_buffers_geometry(window, 0, 0, format);
 
   let surface = gl_try!("egl::create_window_surface", egl::create_window_surface(display, config, window));
@@ -200,40 +345,13 @@ pub extern fn init_display(engine: &mut Engine) -> c_int {
   let w = gl_try!("egl::query_surface(egl::WIDTH)", egl::query_surface(display, surface, egl::WIDTH));
   let h = gl_try!("egl::query_surface(egl::HEIGHT)", egl::query_surface(display, surface, egl::HEIGHT));
 
-  engine.display = display;
-  engine.context = context;
-  engine.surface = surface;
-  engine.width = w;
-  engine.height = h;
-  engine.state.angle = 0.0;
-
-  gl_try!("gl::enable(gl::CULL_FACE)", gl::enable(gl::CULL_FACE));
-  gl_try!("gl::disable(gl::DEPTH_TEST)", gl::disable(gl::DEPTH_TEST));
+  engine.init(display, surface, context, (w, h));
 
   return 0;
 }
 
-/// Draw the current frame on display.
-#[no_mangle]
-pub extern fn draw_frame(engine: &Engine) {
-  if engine.display == ptr::null() {
-    // No display.
-    return;
-  }
-
-  // Just fill the screen with a color.
-  let r = (engine.state.x as f32) / (engine.width as f32);
-  let g = engine.state.angle;
-  let b = (engine.state.y as f32) / (engine.height as f32);
-  gl::clear_color(r, g, b, 1.0);
-
-  gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
-  gl_try!("egl::swap_buffers", egl::swap_buffers(engine.display, engine.surface));
-}
-
 /// Tear down the EGL context currently associated with the display.
-#[no_mangle]
-pub extern fn term_display(engine: &mut Engine) {
+fn term_display(engine: &mut Engine) {
   if engine.display != egl::NO_DISPLAY {
     gl_try!("egl::make_current",
       egl::make_current(engine.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
@@ -246,29 +364,21 @@ pub extern fn term_display(engine: &mut Engine) {
     gl_try!("egl::terminate", egl::terminate(engine.display));
   }
 
-  engine.animating = 0;
-  engine.display = egl::NO_DISPLAY;
-  engine.context = egl::NO_CONTEXT;
-  engine.surface = egl::NO_SURFACE;
+  engine.term();
 }
 
 /// Process the next input event.
 #[no_mangle]
-pub extern fn handle_input(app: *mut AndroidApp, event: *const input::Event) -> int32_t {
+pub extern fn handle_input(app: *mut AndroidApp, event_ptr: *const input::Event) -> int32_t {
   let engine_ptr = unsafe { (*app).user_data as *mut Engine };
   if engine_ptr.is_null() {
     fail!("Engine pointer is null");
   }
   let engine: &mut Engine = unsafe { &mut *engine_ptr };
-
-  match input::get_event_type(event) {
-    input::Key => 0,
-    input::Motion => {
-      engine.animating = 1;
-      engine.state.x = input::get_motion_event_x(event, 0) as i32;
-      engine.state.y = input::get_motion_event_y(event, 0) as i32;
-      return 1;
-    },
+  let event: &input::Event = unsafe { &*event_ptr };
+  match engine.handle_input(event) {
+    true => 1,
+    false => 0,
   }
 }
 
@@ -285,8 +395,8 @@ static APP_CMD_SAVE_STATE: int32_t = 12;
 // APP_CMD_SAVE_STATE, APP_CMD_PAUSE, APP_CMD_LOST_FOCUS, APP_CMD_TERM_WINDOW,
 // APP_CMD_STOP.
 #[no_mangle]
-pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
-  let engine_ptr = unsafe { (*app).user_data as *mut Engine };
+pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
+  let engine_ptr = unsafe { (*app_ptr).user_data as *mut Engine };
   if engine_ptr.is_null() {
     fail!("Engine pointer is null");
   }
@@ -295,9 +405,9 @@ pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
   match command {
     APP_CMD_INIT_WINDOW => {
       // The window is being shown, get it ready.
-      if unsafe { !(*engine.app).window.is_null() } {
-        init_display(engine);
-        draw_frame(engine);
+      if unsafe { !(*app_ptr).window.is_null() } {
+        init_display(app_ptr, engine);
+        engine.draw();
       }
     },
     APP_CMD_TERM_WINDOW => {
@@ -305,54 +415,16 @@ pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
       term_display(engine);
     },
     APP_CMD_GAINED_FOCUS => {
-      // When our app gains focus, we start monitoring the accelerometer.
-      if !engine.accelerometer_sensor.is_null() {
-        match sensor::enable_sensor(engine.sensor_event_queue, engine.accelerometer_sensor) {
-          Ok(_) => (),
-          Err(e) => {
-            log::e_f(format!("enable_sensor failed: {}", e));
-            fail!();
-          }
-        };
-        // Request 60 events per second, in micros.
-        match sensor::set_event_rate(engine.sensor_event_queue, engine.accelerometer_sensor,
-          1000 * 1000 / 60) {
-          Ok(_) => (),
-          Err(e) => {
-            log::e_f(format!("set_event_rate failed: {}", e));
-            fail!();
-          }
-        };
-      }
+      engine.gained_focus();
     },
     APP_CMD_LOST_FOCUS => {
-      // When our app loses focus, we stop monitoring the accelerometer.
-      // This is to avoid consuming battery while not being used.
-      if !engine.accelerometer_sensor.is_null() {
-        match sensor::disable_sensor(engine.sensor_event_queue, engine.accelerometer_sensor) {
-          Ok(_) => (),
-          Err(e) => {
-            log::e_f(format!("disable_sensor failed: {}", e));
-            fail!();
-          }
-        }
-      }
-      // Also stop animating.
-      engine.animating = 0;
-      draw_frame(engine);
+      engine.lost_focus();
     },
     APP_CMD_SAVE_STATE => {
       // The system has asked us to save our current state.  Do so.
-      // This will leak memory each time since we don't free existing engine.aoo.saved_state.
-      let app: &mut AndroidApp = unsafe { &mut *engine.app };
-      let size = mem::size_of::<SavedState>() as size_t;
-      app.saved_state = unsafe { malloc(size) };
-
-      let app_saved_state: &mut SavedState = unsafe { &mut *(app.saved_state as *mut SavedState) };
-      app_saved_state.angle = engine.state.angle;
-      app_saved_state.x = engine.state.x;
-      app_saved_state.y = engine.state.y;
-
+      let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+      let (size, saved_state) = engine.save_state();
+      app.saved_state = saved_state;
       app.saved_state_size = size;
     },
     _ => (),
@@ -374,8 +446,7 @@ struct AndroidPollSource {
   process: extern "C" fn (app: *mut AndroidApp, source: *const AndroidPollSource),
 }
 
-#[no_mangle]
-pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine) {
+fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine) {
   let app: &mut AndroidApp = unsafe { &mut *app_ptr };
   let engine: &mut Engine = unsafe { &mut *engine_ptr };
 
@@ -383,7 +454,7 @@ pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine)
   loop {
     'inner: loop {
       // Block polling when not animating.
-      let poll_timeout = if engine.animating != 0 { 0 } else { -1 };
+      let poll_timeout = if engine.is_active() { 0 } else { -1 };
       match sensor::poll_all(poll_timeout) {
         Err(_) => break 'inner,
         Ok(poll_result) => {
@@ -401,8 +472,8 @@ pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine)
             if !engine.accelerometer_sensor.is_null() {
               'sensor: loop {
                 match sensor::get_event(engine.sensor_event_queue) {
-                  Ok(_) => {
-                    // NYI: Process sensor event.
+                  Ok(ev) => {
+                    engine.handle_sensor(&ev);
                     ()
                   },
                   Err(_) => break 'sensor,
@@ -419,17 +490,7 @@ pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine)
         }
       }
     }
-
-    if engine.animating != 0 {
-      // Done processing events; draw next animation frame.
-      engine.state.angle += 0.01;
-      if engine.state.angle > 1.0 {
-        engine.state.angle = 0.0;
-      }
-
-      // Drawing is throttled to the screen update rate, so there is no need to do timing here.
-      draw_frame(engine);
-    }
+    engine.update_draw();
   }
 }
 
@@ -442,15 +503,8 @@ pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine)
 pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
   log::i("-------------------------------------------------------------------");
 
-  // Make sure native application glue isn't stripped.
-  unsafe {
-    app_dummy();
-  }
-
   let app: &mut AndroidApp = unsafe { &mut *app_ptr };
   let mut engine = Engine {
-    app: app_ptr,
-    sensor_manager: sensor::get_instance(),
     accelerometer_sensor: sensor::get_default_sensor(sensor::TYPE_ACCELEROMETER),
     sensor_event_queue: sensor::create_event_queue(app.looper, sensor::LOOPER_ID_USER),
     state: if app.saved_state.is_null() {
@@ -468,8 +522,4 @@ pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
   app.on_input_event = handle_input as *const c_void;
 
   rust_event_loop(app_ptr, &mut engine as *mut Engine);
-}
-
-extern {
-  fn app_dummy();
 }
