@@ -6,6 +6,7 @@ use native_window::ANativeWindow;
 use std::default::Default;
 use std::mem;
 use std::ptr;
+pub use input::Event;
 
 mod egl;
 mod gl;
@@ -36,9 +37,13 @@ struct ANativeActivity;
 struct AConfiguration;
 
 struct ARect {
+  #[allow(dead_code)]
   left: i32,
+  #[allow(dead_code)]
   top: i32,
+  #[allow(dead_code)]
   right: i32,
+  #[allow(dead_code)]
   bottom: i32,
 }
 
@@ -46,7 +51,7 @@ struct ARect {
 // application's code is running in its own thread separate from the main thread of the process.
 // It is not required that this thread be associated with the Java VM, although it will need to be
 // in order to make JNI calls to any Java objects.  Compatible with C.
-struct AndroidApp {
+pub struct AndroidApp {
   // The application can place a pointer to its own state object here if it likes.
   user_data: *const c_void,
   // Fill this in with the function to process main app commands (APP_CMD_*)
@@ -57,8 +62,10 @@ struct AndroidApp {
   // the event, 0 for any default dispatching.
   on_input_event: *const c_void,
   // The ANativeActivity object instance that this app is running in.
+  #[allow(dead_code)]
   activity: *const ANativeActivity,
   // The current configuration the app is running in.
+  #[allow(dead_code)]
   config: *const AConfiguration,
   // This is the last instance's saved state, as provided at creation time.  It is NULL if there
   // was no state.  You can use this as you need; the memory will remain around until you call
@@ -71,14 +78,17 @@ struct AndroidApp {
   // The looper associated with the app's thread.
   looper: *const sensor::ALooper,
   // When non-NULL, this is the input queue from which the app will receive user input events.
+  #[allow(dead_code)]
   input_queue: *const input::Queue,
   // When non-NULL, this is the window surface that the app can draw in.
   window: *const ANativeWindow,
   // Current content rectangle of the window; this is the area where the window's content should be
   // placed to be seen by the user.
+  #[allow(dead_code)]
   content_rect: ARect,
   // Current state of the app's activity.  May be either APP_CMD_START, APP_CMD_RESUME,
   // APP_CMD_PAUSE, or APP_CMD_STOP; see below.
+  #[allow(dead_code)]
   activity_state: c_int,
   // This is non-zero when the application's NativeActivity is being destroyed and waiting for
   // the app thread to complete.
@@ -100,9 +110,10 @@ impl Default for SavedState {
 }
 
 // Shared state for our app.  Compatible with C.
-struct Engine {
+pub struct Engine {
   app: *mut AndroidApp,
 
+  #[allow(dead_code)]
   sensor_manager: *const sensor::Manager,
   accelerometer_sensor: *const sensor::Sensor,
   sensor_event_queue: *mut sensor::EventQueue,
@@ -354,8 +365,10 @@ pub extern fn handle_cmd(app: *mut AndroidApp, command: int32_t) {
  */
 struct AndroidPollSource {
   /// The identifier of this source.  May be LOOPER_ID_MAIN or LOOPER_ID_INPUT.
+  #[allow(dead_code)]
   id: int32_t,
   /// The android_app this ident is associated with.
+  #[allow(dead_code)]
   app: *const AndroidApp,
   /// Function to call to perform the standard processing of data from this source.
   process: extern "C" fn (app: *mut AndroidApp, source: *const AndroidPollSource),
@@ -386,14 +399,13 @@ pub extern fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine)
           // If the sensor has data, process it now.
           if poll_result.id == sensor::LOOPER_ID_USER {
             if !engine.accelerometer_sensor.is_null() {
-              let sensor_event: sensor::Event = Default::default();
               'sensor: loop {
                 match sensor::get_event(engine.sensor_event_queue) {
-                  Ok(ev) => {
+                  Ok(_) => {
                     // NYI: Process sensor event.
                     ()
                   },
-                  Err(e) => break 'sensor,
+                  Err(_) => break 'sensor,
                 }
               }
             }

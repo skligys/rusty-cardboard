@@ -15,10 +15,15 @@ pub struct EventQueue;
 // C structure contains unions not representable in Rust, so this is just the
 // version as it applies to accelerometer.
 struct Vector {
+  #[allow(dead_code)]
   x: c_float,
+  #[allow(dead_code)]
   y: c_float,
+  #[allow(dead_code)]
   z: c_float,
+  #[allow(dead_code)]
   status: int8_t,
+  #[allow(dead_code)]
   reserved: [uint8_t, ..3]
 }
 
@@ -31,12 +36,19 @@ impl Default for Vector {
 // C structure contains unions not representable in Rust, so this is just the
 // version as it applies to accelerometer.
 pub struct Event {
+  #[allow(dead_code)]
   version: int32_t,  /* size_of(Event) */
+  #[allow(dead_code)]
   sensor: int32_t,
+  #[allow(dead_code)]
   event_type: int32_t,
+  #[allow(dead_code)]
   reserved0: int32_t,
+  #[allow(dead_code)]
   timestamp: int64_t,
+  #[allow(dead_code)]
   acceleration: Vector,
+  #[allow(dead_code)]
   reserved1: [int32_t, ..4]
 }
 
@@ -55,7 +67,9 @@ impl Default for Event {
 }
 
 // Looper id enums:
+#[allow(dead_code)]
 pub static LOOPER_ID_MAIN: c_int = 1;
+#[allow(dead_code)]
 pub static LOOPER_ID_INPUT: c_int = 2;
 pub static LOOPER_ID_USER: c_int = 3;
 
@@ -82,11 +96,13 @@ pub struct ALooper;
  */
 // This is the right way but could not make passing null pointers work, neither with 0 as ...,
 // nor with None::<..>.
-// type ALooper_callbackFunc = extern "C" fn (fd: c_int, events: c_int, data: *const c_void) -> c_int;
-type ALooper_callbackFunc = *const c_void;
+// type LooperCallback = extern "C" fn (fd: c_int, events: c_int, data: *const c_void) -> c_int;
+#[allow(dead_code)]
+type LooperCallback = *const c_void;
 
 // Sensor type enums:
 pub static TYPE_ACCELEROMETER: c_int = 1;
+#[allow(dead_code)]
 pub static TYPE_MAGNETIC_FIELD: c_int = 2;
 
 /// Get an unsafe pointer to the sensor manager.  Manager is a singleton.
@@ -116,8 +132,9 @@ pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> *mut EventQue
  * Creates a new sensor event queue and associates it with a looper.  This is a version with
  * event callback.
  */
+#[allow(dead_code)]
 pub fn create_event_queue_with_callback(looper: *const ALooper, ident: c_int,
-  callback: ALooper_callbackFunc, data: *const c_void) -> *mut EventQueue {
+  callback: LooperCallback, data: *const c_void) -> *mut EventQueue {
   let manager = get_instance();
   unsafe {
     ASensorManager_createEventQueue(manager, looper, ident, callback, data)
@@ -178,6 +195,7 @@ pub fn get_event(queue: *mut EventQueue) -> Result<Event, c_int> {
  */
 static ALOOPER_POLL_WAKE: c_int = -1;
 /// One or more callbacks were executed.
+#[allow(dead_code)]
 static ALOOPER_POLL_CALLBACK: c_int = -2;
 /// The timeout expired.
 static ALOOPER_POLL_TIMEOUT: c_int = -3;
@@ -244,7 +262,7 @@ extern {
   fn ASensorManager_getInstance() -> *const Manager;
   fn ASensorManager_getDefaultSensor(manager: *const Manager, sensor_type: c_int) -> *const Sensor;
   fn ASensorManager_createEventQueue(manager: *const Manager, looper: *const ALooper, ident: c_int,
-    callback: ALooper_callbackFunc, data: *const c_void) -> *mut EventQueue;
+    callback: LooperCallback, data: *const c_void) -> *mut EventQueue;
   fn ASensorEventQueue_enableSensor(queue: *mut EventQueue, sensor: *const Sensor) -> c_int;
   fn ASensorEventQueue_disableSensor(queue: *mut EventQueue, sensor: *const Sensor) -> c_int;
   fn ASensorEventQueue_setEventRate(queue: *mut EventQueue, sensor: *const Sensor, usec: int32_t) -> c_int;

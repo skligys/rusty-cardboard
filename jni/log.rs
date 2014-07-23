@@ -1,14 +1,19 @@
 use libc::{c_char, c_int};
 
 // Logging priorities:
+#[allow(dead_code)]
 static VERBOSE: c_int = 2;
+#[allow(dead_code)]
 static DEBUG: c_int = 3;
 static INFO: c_int = 4;
+#[allow(dead_code)]
 static WARN: c_int = 5;
 static ERROR: c_int = 6;
+#[allow(dead_code)]
 static FATAL: c_int = 7;
 
 // Bridges to Android logging at various priorities.
+#[allow(dead_code)]
 pub fn v(msg: &str) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -16,6 +21,7 @@ pub fn v(msg: &str) {
   }
 }
 
+#[allow(dead_code)]
 pub fn v_f(msg: String) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -23,6 +29,7 @@ pub fn v_f(msg: String) {
   }
 }
 
+#[allow(dead_code)]
 pub fn d(msg: &str) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -30,6 +37,7 @@ pub fn d(msg: &str) {
   }
 }
 
+#[allow(dead_code)]
 pub fn d_f(msg: String) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -51,6 +59,7 @@ pub fn i_f(msg: String) {
   }
 }
 
+#[allow(dead_code)]
 pub fn w(msg: &str) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -58,6 +67,7 @@ pub fn w(msg: &str) {
   }
 }
 
+#[allow(dead_code)]
 pub fn w_f(msg: String) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -79,6 +89,7 @@ pub fn e_f(msg: String) {
   }
 }
 
+#[allow(dead_code)]
 pub fn wtf(msg: &str) {
   let c_string = msg.to_c_str();
   unsafe {
@@ -86,6 +97,7 @@ pub fn wtf(msg: &str) {
   }
 }
 
+#[allow(dead_code)]
 pub fn wtf_f(msg: String) {
   let c_string = msg.to_c_str();
   unsafe {

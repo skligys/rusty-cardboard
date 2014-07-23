@@ -15,19 +15,28 @@ pub static SHADING_LANGUAGE_VERSION: Enum = 0x8B8C;
 // glEnable and glDisable enums:
 pub static CULL_FACE: Enum = 0x0B44;
 pub static DEPTH_TEST: Enum = 0x0B71;
+#[allow(dead_code)]
 pub static STENCIL_TEST: Enum = 0x0B90;
+#[allow(dead_code)]
 pub static DITHER: Enum = 0x0BD0;
+#[allow(dead_code)]
 pub static BLEND: Enum = 0x0BE2;
+#[allow(dead_code)]
 pub static SCISSOR_TEST: Enum = 0x0C11;
+#[allow(dead_code)]
 pub static POLYGON_OFFSET_FILL: Enum = 0x8037;
+#[allow(dead_code)]
 pub static SAMPLE_ALPHA_TO_COVERAGE: Enum = 0x809E;
+#[allow(dead_code)]
 pub static SAMPLE_COVERAGE: Enum = 0x80A0;
 
 // Error codes.
 static NO_ERROR: Enum = 0;
 static INVALID_ENUM: Enum = 0x0500;
 static INVALID_VALUE: Enum = 0x0501;
+#[allow(dead_code)]
 static INVALID_OPERATION: Enum = 0x0502;
+#[allow(dead_code)]
 static OUT_OF_MEMORY: Enum = 0x0505;
 
 type UByte = uint8_t;
@@ -35,7 +44,9 @@ type Clampf = c_float;
 type Bitfield = c_uint;
 
 // glClear mask bits:
+#[allow(dead_code)]
 pub static DEPTH_BUFFER_BIT: Enum = 0x00000100;
+#[allow(dead_code)]
 pub static STENCIL_BUFFER_BIT: Enum = 0x00000400;
 pub static COLOR_BUFFER_BIT: Enum = 0x00004000;
 
