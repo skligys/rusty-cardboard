@@ -112,7 +112,7 @@ pub fn get_instance() -> *const Manager {
   }
 }
 
-/// Returns the default sensor for the given type, or None if no sensor of that type exist.
+/// Returns the default sensor for the given type, or null if no sensor of that type exist.
 pub fn get_default_sensor(sensor_type: c_int) -> *const Sensor {
   let manager = get_instance();
   unsafe {

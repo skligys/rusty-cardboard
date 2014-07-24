@@ -275,7 +275,11 @@ impl Renderer for Engine {
 
   fn save_state(&self) -> (size_t, *mut c_void) {
     let size = mem::size_of::<SavedState>() as size_t;
-    let result = unsafe { malloc(size) };
+    let result = unsafe {
+      let p = malloc(size);
+      assert!(!p.is_null());
+      p
+    };
 
     let saved_state: &mut SavedState = unsafe { &mut *(result as *mut SavedState) };
     saved_state.angle = self.state.angle;
