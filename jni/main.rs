@@ -157,8 +157,8 @@ impl Drop for EglContext {
 
 // Shared state for our app.  Compatible with C.
 pub struct Engine {
-  accelerometer_sensor: *const sensor::Sensor,
-  sensor_event_queue: *mut sensor::EventQueue,
+  accelerometer_sensor: Option<&'static sensor::Sensor>,
+  sensor_event_queue: Option<&'static sensor::EventQueue>,
   animating: bool,
   egl_context: Option<Box<EglContext>>,
   state: SavedState,
@@ -167,8 +167,8 @@ pub struct Engine {
 impl Default for Engine {
   fn default() -> Engine {
     Engine {
-      accelerometer_sensor: ptr::null(),
-      sensor_event_queue: ptr::mut_null(),
+      accelerometer_sensor: None,
+      sensor_event_queue: None,
       egl_context: None,
       animating: false,
       state: Default::default(),
@@ -187,8 +187,10 @@ trait Renderer {
   fn term(&mut self);
   /// Handle touch and key input.  Return true if you handled event, false for any default handling.
   fn handle_input(&mut self, event: &input::Event) -> bool;
+  /// Loop and handle all sensor events if any.
+  fn handle_sensor_events(&self);
   /// Handle sensor input.
-  fn handle_sensor(&mut self, event: &sensor::Event);
+  fn handle_sensor(&self, event: &sensor::Event);
   /// Called when window gains input focus.
   fn gained_focus(&mut self);
   /// Active when initialized and has focus.
@@ -201,6 +203,7 @@ trait Renderer {
 }
 
 impl Renderer for Engine {
+  /// Initialize the engine.
   fn init(&mut self, egl_context: Box<EglContext>) {
     self.egl_context = Some(egl_context);
     self.state.angle = 0.0;
@@ -209,6 +212,7 @@ impl Renderer for Engine {
     gl_try!("gl::disable(gl::DEPTH_TEST)", gl::disable(gl::DEPTH_TEST));
   }
 
+  /// Draw a frame.
   fn draw(&mut self) {
     match self.egl_context {
       None => return,  // No display.
@@ -225,6 +229,7 @@ impl Renderer for Engine {
     }
   }
 
+  /// Update for time passed and draw a frame.
   fn update_draw(&mut self) {
     if self.animating {
       // Done processing events; draw next animation frame.
@@ -238,13 +243,14 @@ impl Renderer for Engine {
     }
   }
 
+  /// Terminate the engine.
   fn term(&mut self) {
     self.animating = false;
     self.egl_context = None;  // This closes the existing context via Drop.
     log::i("Terminated");
   }
 
-  // Return true if you handled event, false for any default handling.
+  /// Handle touch and key input.  Return true if you handled event, false for any default handling.
   fn handle_input(&mut self, event: &input::Event) -> bool {
     match input::get_event_type(event) {
       input::Key => false,
@@ -256,57 +262,77 @@ impl Renderer for Engine {
     }
   }
 
+  /// Loop and handle all sensor events if any.
+  fn handle_sensor_events(&self) {
+    match self.sensor_event_queue {
+      None => (),
+      Some(ref event_queue) => {
+        'sensor: loop {
+          match sensor::get_event(*event_queue) {
+            Ok(ev) => {
+              self.handle_sensor(&ev);
+              ()
+            },
+            Err(_) => break 'sensor,
+          }
+        }
+      }
+    }
+  }
+
+  /// Handle sensor input.
   #[allow(unused_variable)]
-  fn handle_sensor(&mut self, event: &sensor::Event) {
+  fn handle_sensor(&self, event: &sensor::Event) {
     // Do nothing.
   }
 
+  /// Called when window gains input focus.
   fn gained_focus(&mut self) {
     self.animating = true;
 
     // When our app gains focus, we start monitoring the accelerometer.
-    if !self.accelerometer_sensor.is_null() {
-      match sensor::enable_sensor(self.sensor_event_queue, self.accelerometer_sensor) {
-        Ok(_) => (),
-        Err(e) => {
-          log::e_f(format!("enable_sensor failed: {}", e));
-          fail!();
+    match self.sensor_event_queue {
+      None => (),
+      Some(ref event_queue) => {
+        match self.accelerometer_sensor {
+          None => (),
+          Some(ref sensor) => {
+            enable_sensor(*event_queue, *sensor);
+            // Request 60 events per second, in micros.
+            sensor_event_rate(*event_queue, *sensor, 60);
+          }
         }
-      };
-
-      // Request 60 events per second, in micros.
-      match sensor::set_event_rate(self.sensor_event_queue, self.accelerometer_sensor,
-        1000 * 1000 / 60) {
-        Ok(_) => (),
-        Err(e) => {
-          log::e_f(format!("set_event_rate failed: {}", e));
-          fail!();
-        }
-      };
+      }
     }
   }
 
+  /// Active when initialized and has focus.
   fn is_active(&self) -> bool {
     self.animating
   }
 
+  /// Called when window loses input focus.
   fn lost_focus(&mut self) {
     // When our app loses focus, we stop monitoring the accelerometer.
     // This is to avoid consuming battery while not being used.
-    if !self.accelerometer_sensor.is_null() {
-      match sensor::disable_sensor(self.sensor_event_queue, self.accelerometer_sensor) {
-        Ok(_) => (),
-        Err(e) => {
-          log::e_f(format!("disable_sensor failed: {}", e));
-          fail!();
+    match self.sensor_event_queue {
+      None => (),
+      Some(ref event_queue) => {
+        match self.accelerometer_sensor {
+          None => (),
+          Some(ref sensor) => {
+            disable_sensor(*event_queue, *sensor);
+          }
         }
       }
-    }
+    };
     // Also stop animating.
     self.animating = false;
     self.draw();
   }
 
+  /// Called to save application state.  malloc some memory, copy your data into it and return
+  /// together with its size.  Native activity code will free it for you later.
   fn save_state(&self) -> (size_t, *mut c_void) {
     let size = mem::size_of::<SavedState>() as size_t;
     let result = unsafe {
@@ -322,6 +348,36 @@ impl Renderer for Engine {
 
     (size, result as *mut c_void)
   }
+}
+
+fn enable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
+  match sensor::enable_sensor(event_queue, sensor) {
+    Ok(_) => (),
+    Err(e) => {
+      log::e_f(format!("enable_sensor failed: {}", e));
+      fail!();
+    }
+  };
+}
+
+fn sensor_event_rate(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor, events_per_second: i32) {
+  match sensor::set_event_rate(event_queue, sensor, 1000 * 1000 / events_per_second) {
+    Ok(_) => (),
+    Err(e) => {
+      log::e_f(format!("set_event_rate failed: {}", e));
+      fail!();
+    }
+  };
+}
+
+fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
+  match sensor::disable_sensor(event_queue, sensor) {
+    Ok(_) => (),
+    Err(e) => {
+      log::e_f(format!("disable_sensor failed: {}", e));
+      fail!();
+    }
+  };
 }
 
 fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
@@ -487,17 +543,7 @@ fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine) {
 
           // If the sensor has data, process it now.
           if poll_result.id == sensor::LOOPER_ID_USER {
-            if !engine.accelerometer_sensor.is_null() {
-              'sensor: loop {
-                match sensor::get_event(engine.sensor_event_queue) {
-                  Ok(ev) => {
-                    engine.handle_sensor(&ev);
-                    ()
-                  },
-                  Err(_) => break 'sensor,
-                }
-              }
-            }
+            engine.handle_sensor_events();
           }
 
           // Check if should exit.
@@ -524,7 +570,7 @@ pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
   let app: &mut AndroidApp = unsafe { &mut *app_ptr };
   let mut engine = Engine {
     accelerometer_sensor: sensor::get_default_sensor(sensor::TYPE_ACCELEROMETER),
-    sensor_event_queue: sensor::create_event_queue(app.looper, sensor::LOOPER_ID_USER),
+    sensor_event_queue: Some(sensor::create_event_queue(app.looper, sensor::LOOPER_ID_USER)),
     state: if app.saved_state.is_null() {
       Default::default()
     } else {

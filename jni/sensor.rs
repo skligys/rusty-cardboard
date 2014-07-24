@@ -106,26 +106,35 @@ pub static TYPE_ACCELEROMETER: c_int = 1;
 pub static TYPE_MAGNETIC_FIELD: c_int = 2;
 
 /// Get an unsafe pointer to the sensor manager.  Manager is a singleton.
-pub fn get_instance() -> *const Manager {
-  unsafe {
+pub fn get_instance() -> &'static Manager {
+  let manager_ptr = unsafe {
     ASensorManager_getInstance()
-  }
+  };
+  assert!(!manager_ptr.is_null());
+  unsafe { &*manager_ptr }
 }
 
-/// Returns the default sensor for the given type, or null if no sensor of that type exist.
-pub fn get_default_sensor(sensor_type: c_int) -> *const Sensor {
+/// Returns the default sensor for the given type, or None if no sensor of that type exist.
+pub fn get_default_sensor(sensor_type: c_int) -> Option<&'static Sensor> {
   let manager = get_instance();
-  unsafe {
+  let sensor_ptr = unsafe {
     ASensorManager_getDefaultSensor(manager, sensor_type)
+  };
+  if sensor_ptr.is_null() {
+    None
+  } else {
+    Some(unsafe { &*sensor_ptr })
   }
 }
 
 /// Creates a new sensor event queue and associates it with a looper.
-pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> *mut EventQueue {
+pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> &'static EventQueue {
   let manager = get_instance();
-  unsafe {
+  let queue_ptr = unsafe {
     ASensorManager_createEventQueue(manager, looper, ident, ptr::null(), ptr::null())
-  }
+  };
+  assert!(!queue_ptr.is_null());
+  unsafe { &*queue_ptr }
 }
 
 /**
@@ -134,15 +143,17 @@ pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> *mut EventQue
  */
 #[allow(dead_code)]
 pub fn create_event_queue_with_callback(looper: *const ALooper, ident: c_int,
-  callback: LooperCallback, data: *const c_void) -> *mut EventQueue {
+  callback: LooperCallback, data: *const c_void) -> &'static EventQueue {
   let manager = get_instance();
-  unsafe {
+  let queue_ptr = unsafe {
     ASensorManager_createEventQueue(manager, looper, ident, callback, data)
-  }
+  };
+  assert!(!queue_ptr.is_null());
+  unsafe { &*queue_ptr }
 }
 
 /// Enable the selected sensor. Returns a negative error code on failure.
-pub fn enable_sensor(queue: *mut EventQueue, sensor: *const Sensor) -> Result<(), i32> {
+pub fn enable_sensor(queue: &EventQueue, sensor: &Sensor) -> Result<(), i32> {
   let res = unsafe {
     ASensorEventQueue_enableSensor(queue, sensor)
   };
@@ -150,7 +161,7 @@ pub fn enable_sensor(queue: *mut EventQueue, sensor: *const Sensor) -> Result<()
 }
 
 /// Disable the selected sensor. Returns a negative error code on failure.
-pub fn disable_sensor(queue: *mut EventQueue, sensor: *const Sensor) -> Result<(), i32> {
+pub fn disable_sensor(queue: &EventQueue, sensor: &Sensor) -> Result<(), i32> {
   let res = unsafe {
     ASensorEventQueue_disableSensor(queue, sensor)
   };
@@ -162,7 +173,7 @@ pub fn disable_sensor(queue: *mut EventQueue, sensor: *const Sensor) -> Result<(
  * a hint only, generally events will arrive at a higher rate. It is an error to set a rate below
  * the value returned by ASensor_getMinDelay().  Returns a negative error code on failure.
  */
-pub fn set_event_rate(queue: *mut EventQueue, sensor: *const Sensor, usec: int32_t) -> Result<(), i32> {
+pub fn set_event_rate(queue: &EventQueue, sensor: &Sensor, usec: int32_t) -> Result<(), i32> {
   let res = unsafe {
     ASensorEventQueue_setEventRate(queue, sensor, usec)
   };
@@ -173,7 +184,7 @@ pub fn set_event_rate(queue: *mut EventQueue, sensor: *const Sensor, usec: int32
  * Returns the next available event from the queue.  Returns a zero error value if no events are
  * available and a negative error value when an error has occurred.
 */
-pub fn get_event(queue: *mut EventQueue) -> Result<Event, c_int> {
+pub fn get_event(queue: &EventQueue) -> Result<Event, c_int> {
   let mut event: Event = Default::default();
   let res = unsafe {
     ASensorEventQueue_getEvents(queue, &mut event as *mut Event, 1)
@@ -263,10 +274,12 @@ extern {
   fn ASensorManager_getDefaultSensor(manager: *const Manager, sensor_type: c_int) -> *const Sensor;
   fn ASensorManager_createEventQueue(manager: *const Manager, looper: *const ALooper, ident: c_int,
     callback: LooperCallback, data: *const c_void) -> *mut EventQueue;
-  fn ASensorEventQueue_enableSensor(queue: *mut EventQueue, sensor: *const Sensor) -> c_int;
-  fn ASensorEventQueue_disableSensor(queue: *mut EventQueue, sensor: *const Sensor) -> c_int;
-  fn ASensorEventQueue_setEventRate(queue: *mut EventQueue, sensor: *const Sensor, usec: int32_t) -> c_int;
-  fn ASensorEventQueue_getEvents(queue: *mut EventQueue, events: *mut Event, count: size_t) -> ssize_t;
+  // We are lying about event queue pointer being const, since otherwise Rust is not happy about
+  // multiple mutable borrows while polling the sensor event queue and couldn't figure it out.
+  fn ASensorEventQueue_enableSensor(queue: *const EventQueue, sensor: *const Sensor) -> c_int;
+  fn ASensorEventQueue_disableSensor(queue: *const EventQueue, sensor: *const Sensor) -> c_int;
+  fn ASensorEventQueue_setEventRate(queue: *const EventQueue, sensor: *const Sensor, usec: int32_t) -> c_int;
+  fn ASensorEventQueue_getEvents(queue: *const EventQueue, events: *mut Event, count: size_t) -> ssize_t;
 
   fn ALooper_pollAll(timeout_millis: c_int, out_fd: *mut c_int, out_events: *mut c_int, out_data: *mut *const c_void) -> c_int;
 }
