@@ -114,6 +114,8 @@ struct EglContext {
   display: egl::Display,
   surface: egl::Surface,
   context: egl::Context,
+  width: i32,
+  height: i32,
 }
 
 impl Default for EglContext {
@@ -122,7 +124,15 @@ impl Default for EglContext {
       display: egl::NO_DISPLAY,
       surface: egl::NO_SURFACE,
       context: egl::NO_CONTEXT,
+      width: 0,
+      height: 0,
     }
+  }
+}
+
+impl EglContext {
+  fn swap_buffers(&self) {
+    gl_try!("egl::swap_buffers", egl::swap_buffers(self.display, self.surface));
   }
 }
 
@@ -151,8 +161,6 @@ pub struct Engine {
   sensor_event_queue: *mut sensor::EventQueue,
   animating: bool,
   egl_context: Option<Box<EglContext>>,
-  width: i32,
-  height: i32,
   state: SavedState,
 }
 
@@ -163,7 +171,6 @@ impl Default for Engine {
       sensor_event_queue: ptr::mut_null(),
       egl_context: None,
       animating: false,
-      width: 0, height: 0,
       state: Default::default(),
     }
   }
@@ -171,7 +178,7 @@ impl Default for Engine {
 
 trait Renderer {
   /// Initialize the renderer.
-  fn init(&mut self, egl_context: Box<EglContext>, size: (i32, i32));
+  fn init(&mut self, egl_context: Box<EglContext>);
   /// Draw a frame.
   fn draw(&mut self);
   /// Update for time passed and draw a frame.
@@ -194,10 +201,8 @@ trait Renderer {
 }
 
 impl Renderer for Engine {
-  fn init(&mut self, egl_context: Box<EglContext>, (width, height): (i32, i32)) {
+  fn init(&mut self, egl_context: Box<EglContext>) {
     self.egl_context = Some(egl_context);
-    self.width = width;
-    self.height = height;
     self.state.angle = 0.0;
 
     gl_try!("gl::enable(gl::CULL_FACE)", gl::enable(gl::CULL_FACE));
@@ -207,15 +212,15 @@ impl Renderer for Engine {
   fn draw(&mut self) {
     match self.egl_context {
       None => return,  // No display.
-      Some(box EglContext { display: d, surface: s, .. } ) => {
+      Some(ref egl_context) => {
         // Just fill the screen with a color.
-        let r = (self.state.x as f32) / (self.width as f32);
+        let r = (self.state.x as f32) / (egl_context.width as f32);
         let g = self.state.angle;
-        let b = (self.state.y as f32) / (self.height as f32);
+        let b = (self.state.y as f32) / (egl_context.height as f32);
         gl::clear_color(r, g, b, 1.0);
 
         gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
-        gl_try!("egl::swap_buffers", egl::swap_buffers(d, s));
+        egl_context.swap_buffers();
       }
     }
   }
@@ -319,8 +324,7 @@ impl Renderer for Engine {
   }
 }
 
-/// Initialize EGL context for the current display.
-fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) -> c_int {
+fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   gl_try!("egl::initialize", egl::initialize(display));
@@ -349,7 +353,6 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) -> c_int {
   let format = gl_try!("egl::get_config_attrib",
     egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
-  let window = unsafe { (*app_ptr).window };
   native_window::set_buffers_geometry(window, 0, 0, format);
 
   let surface = gl_try!("egl::create_window_surface", egl::create_window_surface(display, config, window));
@@ -366,14 +369,20 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) -> c_int {
   let w = gl_try!("egl::query_surface(egl::WIDTH)", egl::query_surface(display, surface, egl::WIDTH));
   let h = gl_try!("egl::query_surface(egl::HEIGHT)", egl::query_surface(display, surface, egl::HEIGHT));
 
-  let egl_context = box EglContext {
+  box EglContext {
     display: display,
     surface: surface,
     context: context,
-  };
-  engine.init(egl_context, (w, h));
+    width: w,
+    height: h,
+  }
+}
 
-  return 0;
+/// Initialize EGL context for the current display.
+fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) {
+  let window = unsafe { (*app_ptr).window };
+  let egl_context = create_egl_context(window);
+  engine.init(egl_context);
 }
 
 /// Process the next input event.
