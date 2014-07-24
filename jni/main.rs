@@ -109,14 +109,48 @@ impl Default for SavedState {
   }
 }
 
+// RAII managed EGL pointers.  Cleaned up automatically via Drop.
+struct EglContext {
+  display: egl::Display,
+  surface: egl::Surface,
+  context: egl::Context,
+}
+
+impl Default for EglContext {
+  fn default() -> EglContext {
+    EglContext {
+      display: egl::NO_DISPLAY,
+      surface: egl::NO_SURFACE,
+      context: egl::NO_CONTEXT,
+    }
+  }
+}
+
+impl Drop for EglContext {
+  fn drop(&mut self) {
+    if self.display != egl::NO_DISPLAY {
+      gl_try!("egl::make_current",
+        egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
+      if self.context != egl::NO_CONTEXT {
+        gl_try!("egl::destroy_context", egl::destroy_context(self.display, self.context));
+        self.context = egl::NO_CONTEXT;
+      }
+      if self.surface != egl::NO_SURFACE {
+        gl_try!("egl::destroy_surface", egl::destroy_surface(self.display, self.surface));
+        self.surface = egl::NO_SURFACE;
+      }
+      gl_try!("egl::terminate", egl::terminate(self.display));
+      self.display = egl::NO_DISPLAY;
+    }
+  }
+}
+
 // Shared state for our app.  Compatible with C.
 pub struct Engine {
   accelerometer_sensor: *const sensor::Sensor,
   sensor_event_queue: *mut sensor::EventQueue,
   animating: bool,
-  display: egl::Display,
-  surface: egl::Surface,
-  context: egl::Context,
+  egl_context: Option<Box<EglContext>>,
   width: i32,
   height: i32,
   state: SavedState,
@@ -127,10 +161,8 @@ impl Default for Engine {
     Engine {
       accelerometer_sensor: ptr::null(),
       sensor_event_queue: ptr::mut_null(),
+      egl_context: None,
       animating: false,
-      display: egl::NO_DISPLAY,
-      surface: egl::NO_SURFACE,
-      context: egl::NO_CONTEXT,
       width: 0, height: 0,
       state: Default::default(),
     }
@@ -139,7 +171,7 @@ impl Default for Engine {
 
 trait Renderer {
   /// Initialize the renderer.
-  fn init(&mut self, display: egl::Display, surface: egl::Surface, context: egl::Context, size: (i32, i32));
+  fn init(&mut self, egl_context: Box<EglContext>, size: (i32, i32));
   /// Draw a frame.
   fn draw(&mut self);
   /// Update for time passed and draw a frame.
@@ -162,10 +194,8 @@ trait Renderer {
 }
 
 impl Renderer for Engine {
-  fn init(&mut self, display: egl::Display, surface: egl::Surface, context: egl::Context, (width, height): (i32, i32)) {
-    self.display = display;
-    self.context = context;
-    self.surface = surface;
+  fn init(&mut self, egl_context: Box<EglContext>, (width, height): (i32, i32)) {
+    self.egl_context = Some(egl_context);
     self.width = width;
     self.height = height;
     self.state.angle = 0.0;
@@ -175,19 +205,19 @@ impl Renderer for Engine {
   }
 
   fn draw(&mut self) {
-    if self.display == ptr::null() {
-      // No display.
-      return;
+    match self.egl_context {
+      None => return,  // No display.
+      Some(box EglContext { display: d, surface: s, .. } ) => {
+        // Just fill the screen with a color.
+        let r = (self.state.x as f32) / (self.width as f32);
+        let g = self.state.angle;
+        let b = (self.state.y as f32) / (self.height as f32);
+        gl::clear_color(r, g, b, 1.0);
+
+        gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
+        gl_try!("egl::swap_buffers", egl::swap_buffers(d, s));
+      }
     }
-
-    // Just fill the screen with a color.
-    let r = (self.state.x as f32) / (self.width as f32);
-    let g = self.state.angle;
-    let b = (self.state.y as f32) / (self.height as f32);
-    gl::clear_color(r, g, b, 1.0);
-
-    gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
-    gl_try!("egl::swap_buffers", egl::swap_buffers(self.display, self.surface));
   }
 
   fn update_draw(&mut self) {
@@ -205,9 +235,8 @@ impl Renderer for Engine {
 
   fn term(&mut self) {
     self.animating = false;
-    self.display = egl::NO_DISPLAY;
-    self.context = egl::NO_CONTEXT;
-    self.surface = egl::NO_SURFACE;
+    self.egl_context = None;  // This closes the existing context via Drop.
+    log::i("Terminated");
   }
 
   // Return true if you handled event, false for any default handling.
@@ -334,41 +363,17 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut Engine) -> c_int {
 
   gl_try!("egl::make_current", egl::make_current(display, surface, surface, context));
 
-  let version = gl_try!("gl::get_string(gl::VERSION)", gl::get_string(gl::VERSION));
-  let vendor = gl_try!("gl::get_string(gl::VENDOR)", gl::get_string(gl::VENDOR));
-  let renderer = gl_try!("gl::get_string(gl::RENDERER)", gl::get_string(gl::RENDERER));
-  let sl_version = gl_try!("gl::get_string(gl::SHADING_LANGUAGE_VERSION)",
-    gl::get_string(gl::SHADING_LANGUAGE_VERSION));
-  log::i_f(format!("OpenGL version: \"{}\", vendor: \"{}\", renderer: \"{}\", SL version: \"{}\"",
-    version.as_str().unwrap(), vendor.as_str().unwrap(), renderer.as_str().unwrap(),
-    sl_version.as_str().unwrap()));
-
-  let extensions = gl_try!("gl::get_string(gl::EXTENSIONS)", gl::get_string(gl::EXTENSIONS));
-  log::i_f(format!("OpenGL extensions: \"{}\"", extensions.as_str().unwrap()));
-
   let w = gl_try!("egl::query_surface(egl::WIDTH)", egl::query_surface(display, surface, egl::WIDTH));
   let h = gl_try!("egl::query_surface(egl::HEIGHT)", egl::query_surface(display, surface, egl::HEIGHT));
 
-  engine.init(display, surface, context, (w, h));
+  let egl_context = box EglContext {
+    display: display,
+    surface: surface,
+    context: context,
+  };
+  engine.init(egl_context, (w, h));
 
   return 0;
-}
-
-/// Tear down the EGL context currently associated with the display.
-fn term_display(engine: &mut Engine) {
-  if engine.display != egl::NO_DISPLAY {
-    gl_try!("egl::make_current",
-      egl::make_current(engine.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
-    if engine.context != egl::NO_CONTEXT {
-      gl_try!("egl::destroy_context", egl::destroy_context(engine.display, engine.context));
-    }
-    if engine.surface != egl::NO_SURFACE {
-      gl_try!("egl::destroy_surface", egl::destroy_surface(engine.display, engine.surface));
-    }
-    gl_try!("egl::terminate", egl::terminate(engine.display));
-  }
-
-  engine.term();
 }
 
 /// Process the next input event.
@@ -416,7 +421,7 @@ pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
     },
     APP_CMD_TERM_WINDOW => {
       // The window is being hidden or closed, clean it up.
-      term_display(engine);
+      engine.term();
     },
     APP_CMD_GAINED_FOCUS => {
       engine.gained_focus();
@@ -488,7 +493,7 @@ fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut Engine) {
 
           // Check if should exit.
           if app.destroy_requested != 0 {
-            term_display(engine);
+            engine.term();
             return;
           }
         }

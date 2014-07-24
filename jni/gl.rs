@@ -6,10 +6,15 @@ use std::ptr;
 type Enum = c_uint;
 
 // glGetString enums:
+#[allow(dead_code)]
 pub static VENDOR: Enum = 0x1F00;
+#[allow(dead_code)]
 pub static RENDERER: Enum = 0x1F01;
+#[allow(dead_code)]
 pub static VERSION: Enum = 0x1F02;
+#[allow(dead_code)]
 pub static EXTENSIONS: Enum = 0x1F03;
+#[allow(dead_code)]
 pub static SHADING_LANGUAGE_VERSION: Enum = 0x8B8C;
 
 // glEnable and glDisable enums:
@@ -60,6 +65,7 @@ enum Error {
   OutOfMemory,
 }
 
+#[allow(dead_code)]
 pub fn get_string(name: Enum) -> Result<CString, Error> {
   unsafe {
     let c_ptr = glGetString(name) as *const c_char;

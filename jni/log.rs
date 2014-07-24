@@ -52,6 +52,7 @@ pub fn i(msg: &str) {
   }
 }
 
+#[allow(dead_code)]
 pub fn i_f(msg: String) {
   let c_string = msg.to_c_str();
   unsafe {
