@@ -14,6 +14,20 @@ mod native_window;
 mod log;
 mod sensor;
 
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
+
 /**
  * This structure defines the native side of an android.app.NativeActivity.
  * It is created by the framework, and handed to the application's native
@@ -97,7 +111,7 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
 pub extern fn handle_input(app: *mut AndroidApp, event_ptr: *const input::Event) -> int32_t {
   let engine_ptr = unsafe { (*app).user_data as *mut engine::Engine };
   if engine_ptr.is_null() {
-    fail!("Engine pointer is null");
+    a_fail!("Engine pointer is null");
   }
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
   let event: &input::Event = unsafe { &*event_ptr };
@@ -123,7 +137,7 @@ static APP_CMD_SAVE_STATE: int32_t = 12;
 pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
   let engine_ptr = unsafe { (*app_ptr).user_data as *mut engine::Engine };
   if engine_ptr.is_null() {
-    fail!("Engine pointer is null");
+    a_fail!("Engine pointer is null");
   }
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
 

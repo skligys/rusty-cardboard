@@ -19,16 +19,29 @@ use input;
 use log;
 use sensor;
 
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
+
 /// On error, logs the error and terminates.  On success, returns the result.
-macro_rules! gl_try( ($e: expr) => (
-  match $e {
-    Ok(e) => e,
-    Err(e) => {
-      log::e_f(format!("{} failed: {}", stringify!($e), e));
-      fail!();
+macro_rules! gl_try(
+  ($e: expr) => (
+    match $e {
+      Ok(e) => e,
+      Err(e) => a_fail!("{} failed: {}", stringify!($e), e),
     }
-  }
-))
+  )
+)
 
 // Saved state data.  Compatible with C.
 struct SavedState {
@@ -172,10 +185,7 @@ impl Engine {
         gl_try!(gl::viewport(0, 0, ec.width, ec.height));
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
-      None => {
-        log::e("self.egl_context should be present");
-        fail!();
-      }
+      None => a_fail!("self.egl_context should be present"),
     }
   }
 
@@ -354,30 +364,21 @@ fn from_angle_y(degrees: f32) -> Matrix4<f32> {
 fn enable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
   match sensor::enable_sensor(event_queue, sensor) {
     Ok(_) => (),
-    Err(e) => {
-      log::e_f(format!("enable_sensor failed: {}", e));
-      fail!();
-    }
+    Err(e) => a_fail!("enable_sensor failed: {}", e),
   };
 }
 
 fn sensor_event_rate(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor, events_per_second: i32) {
   match sensor::set_event_rate(event_queue, sensor, 1000 * 1000 / events_per_second) {
     Ok(_) => (),
-    Err(e) => {
-      log::e_f(format!("set_event_rate failed: {}", e));
-      fail!();
-    }
+    Err(e) => a_fail!("set_event_rate failed: {}", e),
   };
 }
 
 fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
   match sensor::disable_sensor(event_queue, sensor) {
     Ok(_) => (),
-    Err(e) => {
-      log::e_f(format!("disable_sensor failed: {}", e));
-      fail!();
-    }
+    Err(e) => a_fail!("disable_sensor failed: {}", e),
   };
 }
 
@@ -399,8 +400,7 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   let mut configs = vec!(ptr::null());
   gl_try!(egl::choose_config(display, attribs_config, &mut configs));
   if configs.len() == 0 {
-    log::e("choose_config() did not find any configurations");
-    fail!();
+    a_fail!("choose_config() did not find any configurations");
   }
   let config = *configs.get(0);
 
@@ -452,8 +452,7 @@ fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
   if !status {
     let info_log = gl_try!(gl::get_shader_info_log(shader));
     gl_try!(gl::delete_shader(shader));
-    log::e_f(format!("Compiling shader {} failed: {}", shader_type, info_log));
-    fail!();
+    a_fail!("Compiling shader {} failed: {}", shader_type, info_log);
   }
   shader
 }
@@ -471,8 +470,7 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl
   if !status {
     let info_log = gl_try!(gl::get_program_info_log(program));
     gl_try!(gl::delete_program(program));
-    log::e_f(format!("Linking program failed: {}", info_log));
-    fail!();
+    a_fail!("Linking program failed: {}", info_log);
   }
   let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
   let position = gl_try!(gl::get_attrib_location(program, "a_Position"));

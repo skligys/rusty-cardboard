@@ -12,6 +12,20 @@ use self::cgmath::vector::Vector4;
 
 use log;
 
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
+
 pub type Enum = c_uint;
 
 // glGetString enums:
@@ -95,10 +109,7 @@ pub fn get_string(name: Enum) -> Result<CString, Error> {
   let err = unsafe { glGetError() };
   match err {
     INVALID_ENUM => Err(InvalidEnum),
-    _ => {
-      log::e_f(format!("Unknown error from glGetString(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glGetString(): {}", err),
   }
 }
 
@@ -111,10 +122,7 @@ pub fn enable(cap: Enum) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(InvalidEnum),
-    _ => {
-      log::e_f(format!("Unknown error from glEnable(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glEnable(): {}", err),
   }
 }
 
@@ -127,10 +135,7 @@ pub fn disable(cap: Enum) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(InvalidEnum),
-    _ => {
-      log::e_f(format!("Unknown error from glDisable(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glDisable(): {}", err),
   }
 }
 
@@ -148,10 +153,7 @@ pub fn clear(mask: Bitfield) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glClear(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glClear(): {}", err),
   }
 }
 
@@ -171,10 +173,7 @@ pub fn create_shader(shader_type: Enum) -> Result<Shader, Error> {
     let err = unsafe { glGetError() };
     match err {
       INVALID_ENUM => Err(InvalidEnum),
-      _ => {
-        log::e_f(format!("Unknown error from glCreateShader(): {}", err));
-        fail!();
-      },
+      _ => a_fail!("Unknown error from glCreateShader(): {}", err),
     }
   }
 }
@@ -190,10 +189,7 @@ pub fn shader_source(shader: Shader, string: &str) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glShaderSource(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glShaderSource(): {}", err),
   }
 }
 
@@ -206,10 +202,7 @@ pub fn compile_shader(shader: Shader) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glCompileShader(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glCompileShader(): {}", err),
   }
 }
 
@@ -240,10 +233,7 @@ pub fn get_shader_param(shader: Shader, param_name: Enum) -> Result<Int, Error> 
     INVALID_ENUM => Err(InvalidEnum),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glGetShaderiv(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glGetShaderiv(): {}", err),
   }
 }
 
@@ -251,10 +241,7 @@ pub fn get_compile_status(shader: Shader) -> Result<bool, Error> {
   match get_shader_param(shader, COMPILE_STATUS) {
     Ok(TRUE) => Ok(true),
     Ok(FALSE) => Ok(false),
-    Ok(i) => {
-      log::e_f(format!("Unknown result from get_shader_param(COMPILE_STATUS): {}", i));
-      fail!();
-    },
+    Ok(i) => a_fail!("Unknown result from get_shader_param(COMPILE_STATUS): {}", i),
     Err(e) => Err(e),
   }
 }
@@ -271,10 +258,7 @@ pub fn get_shader_info_log(shader: Shader) -> Result<String, Error> {
         NO_ERROR => Ok(string_from_chars(buff.as_slice())),
         INVALID_VALUE => Err(InvalidValue),
         INVALID_OPERATION => Err(InvalidOperation),
-        _ => {
-          log::e_f(format!("Unknown error from glGetShaderInfoLog(): {}", err));
-          fail!();
-        },
+        _ => a_fail!("Unknown error from glGetShaderInfoLog(): {}", err),
       }
     },
     Err(e) => Err(e),
@@ -293,10 +277,7 @@ pub fn delete_shader(shader: Shader) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glDeleteShader(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glDeleteShader(): {}", err),
   }
 }
 
@@ -310,8 +291,7 @@ pub fn create_program() -> Result<Program, Error> {
     Ok(res)
   } else {
     let err = unsafe { glGetError() };
-    log::e_f(format!("Unknown error from glCreateProgram(): {}", err));
-    fail!();
+    a_fail!("Unknown error from glCreateProgram(): {}", err);
   }
 }
 
@@ -324,10 +304,7 @@ pub fn attach_shader(program: Program, shader: Shader) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glAttachShader(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glAttachShader(): {}", err),
   }
 }
 
@@ -341,10 +318,7 @@ pub fn bind_attrib_location(program: Program, index: u32, name: &str) -> Result<
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glBindAttribLocation(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glBindAttribLocation(): {}", err),
   }
 }
 
@@ -357,10 +331,7 @@ pub fn link_program(program: Program) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glLinkProgram(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glLinkProgram(): {}", err),
   }
 }
 
@@ -392,10 +363,7 @@ pub fn get_program_param(program: Program, param_name: Enum) -> Result<Int, Erro
     INVALID_ENUM => Err(InvalidEnum),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glGetProgramiv(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glGetProgramiv(): {}", err),
   }
 }
 
@@ -403,10 +371,7 @@ pub fn get_link_status(program: Program) -> Result<bool, Error> {
   match get_program_param(program, LINK_STATUS) {
     Ok(TRUE) => Ok(true),
     Ok(FALSE) => Ok(false),
-    Ok(i) => {
-      log::e_f(format!("Unknown result from get_program_param(LINK_STATUS): {}", i));
-      fail!();
-    },
+    Ok(i) => a_fail!("Unknown result from get_program_param(LINK_STATUS): {}", i),
     Err(e) => Err(e),
   }
 }
@@ -423,10 +388,7 @@ pub fn get_program_info_log(program: Program) -> Result<String, Error> {
         NO_ERROR => Ok(string_from_chars(buff.as_slice())),
         INVALID_VALUE => Err(InvalidValue),
         INVALID_OPERATION => Err(InvalidOperation),
-        _ => {
-          log::e_f(format!("Unknown error from glGetProgramInfoLog(): {}", err));
-          fail!();
-        },
+        _ => a_fail!("Unknown error from glGetProgramInfoLog(): {}", err),
       }
     },
     Err(e) => Err(e),
@@ -441,10 +403,7 @@ pub fn delete_program(program: Program) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glDeleteProgram(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glDeleteProgram(): {}", err),
   }
 }
 
@@ -462,10 +421,7 @@ pub fn get_uniform_location(program: Program, name: &str) -> Result<UnifLoc, Err
     match err {
       INVALID_VALUE => Err(InvalidValue),
       INVALID_OPERATION => Err(InvalidOperation),
-      _ => {
-        log::e_f(format!("Unknown error from glGetUniformLocation(): {}", err));
-        fail!();
-      },
+      _ => a_fail!("Unknown error from glGetUniformLocation(): {}", err),
     }
   }
 }
@@ -484,10 +440,7 @@ pub fn get_attrib_location(program: Program, name: &str) -> Result<AttribLoc, Er
     match err {
       INVALID_VALUE => Err(InvalidValue),
       INVALID_OPERATION => Err(InvalidOperation),
-      _ => {
-        log::e_f(format!("Unknown error from glGetAttribLocation(): {}", err));
-        fail!();
-      },
+      _ => a_fail!("Unknown error from glGetAttribLocation(): {}", err),
     }
   }
 }
@@ -501,10 +454,7 @@ pub fn use_program(program: Program) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glUseProgram(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glUseProgram(): {}", err),
   }
 }
 
@@ -516,10 +466,7 @@ pub fn viewport(x: i32, y: i32, width: i32, height: i32) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glViewport(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glViewport(): {}", err),
   }
 }
 
@@ -533,10 +480,7 @@ pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) -> Result<(
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_OPERATION => Err(InvalidOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glUniformMatrix4fv(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glUniformMatrix4fv(): {}", err),
   }
 }
 
@@ -567,10 +511,7 @@ pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(InvalidEnum),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glVertexAttribPointer(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glVertexAttribPointer(): {}", err),
   }
 }
 
@@ -582,10 +523,7 @@ pub fn enable_vertex_attrib_array(location: AttribLoc) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(InvalidValue),
-    _ => {
-      log::e_f(format!("Unknown error from glEnableVertexAttribArray(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glEnableVertexAttribArray(): {}", err),
   }
 }
 
@@ -602,10 +540,7 @@ pub fn draw_arrays_triangles(count: i32) -> Result<(), Error> {
     INVALID_ENUM => Err(InvalidEnum),
     INVALID_VALUE => Err(InvalidValue),
     INVALID_FRAMEBUFFER_OPERATION => Err(InvalidFramebufferOperation),
-    _ => {
-      log::e_f(format!("Unknown error from glDrawArrays(): {}", err));
-      fail!();
-    },
+    _ => a_fail!("Unknown error from glDrawArrays(): {}", err),
   }
 }
 

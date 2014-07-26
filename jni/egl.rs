@@ -3,7 +3,24 @@ use libc::{c_uint, c_void};
 use std::ptr;
 use std::result::Result;
 use std::vec::Vec;
+
 use native_window::ANativeWindow;
+
+use log;
+
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
 
 pub type Display = *const c_void;
 pub static NO_DISPLAY: Display = 0 as Display;
@@ -94,10 +111,10 @@ pub fn initialize(display: Display) -> Result<(), Error> {
       match err {
         NOT_INITIALIZED => Err(NotInitialized),
         BAD_DISPLAY => Err(BadDisplay),
-        _ => fail!("Unknown error from eglInitialize(): {}", err),
+        _ => a_fail!("Unknown error from eglInitialize(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglInitialize(): {}", res),
+    _ => a_fail!("Unknown return value from eglInitialize(): {}", res),
   }
 }
 
@@ -115,10 +132,10 @@ pub fn initialize_with_version(display: Display) -> Result<(Int, Int), Error> {
       match err {
         NOT_INITIALIZED => Err(NotInitialized),
         BAD_DISPLAY => Err(BadDisplay),
-        _ => fail!("Unknown error from eglInitialize(): {}", err),
+        _ => a_fail!("Unknown error from eglInitialize(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglInitialize(): {}", res),
+    _ => a_fail!("Unknown return value from eglInitialize(): {}", res),
   }
 }
 
@@ -140,10 +157,10 @@ pub fn choose_config(display: Display, attribs: &[Int], configs: &mut Vec<Config
         BAD_ATTRIBUTE => Err(BadAttribute),
         BAD_DISPLAY => Err(BadDisplay),
         BAD_PARAMETER => Err(BadParameter),
-        _ => fail!("Unknown error from eglChooseConfig(): {}", err),
+        _ => a_fail!("Unknown error from eglChooseConfig(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglChooseConfig(): {}", res),
+    _ => a_fail!("Unknown return value from eglChooseConfig(): {}", res),
   }
 }
 
@@ -161,10 +178,10 @@ pub fn get_config_attrib(display: Display, config: Config, attribute: Int) -> Re
         BAD_ATTRIBUTE => Err(BadAttribute),
         BAD_CONFIG => Err(BadConfig),
         BAD_DISPLAY => Err(BadDisplay),
-        _ => fail!("Unknown error from eglGetConfigAttrib(): {}", err),
+        _ => a_fail!("Unknown error from eglGetConfigAttrib(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglGetConfigAttrib(): {}", res),
+    _ => a_fail!("Unknown return value from eglGetConfigAttrib(): {}", res),
   }
 }
 
@@ -185,7 +202,7 @@ pub fn create_window_surface(display: Display, config: Config, window: NativeWin
       BAD_DISPLAY => Err(BadDisplay),
       BAD_MATCH => Err(BadMatch),
       BAD_NATIVE_WINDOW => Err(BadNativeWindow),
-      _ => fail!("Unknown error from eglCreateWindowSurface(): {}", res),
+      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {}", res),
     }
   }
 }
@@ -208,7 +225,7 @@ pub fn create_window_surface_with_attribs(display: Display, config: Config, wind
       BAD_DISPLAY => Err(BadDisplay),
       BAD_MATCH => Err(BadMatch),
       BAD_NATIVE_WINDOW => Err(BadNativeWindow),
-      _ => fail!("Unknown error from eglCreateWindowSurface(): {}", res),
+      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {}", res),
     }
   }
 }
@@ -231,7 +248,7 @@ pub fn create_context(display: Display, config: Config, share_context: Context) 
       BAD_CONTEXT => Err(BadContext),
       BAD_DISPLAY => Err(BadDisplay),
       BAD_MATCH => Err(BadMatch),
-      _ => fail!("Unknown error from eglCreateContext(): {}", res),
+      _ => a_fail!("Unknown error from eglCreateContext(): {}", res),
     }
   }
 }
@@ -253,7 +270,7 @@ pub fn create_context_with_attribs(display: Display, config: Config, share_conte
       BAD_CONTEXT => Err(BadContext),
       BAD_DISPLAY => Err(BadDisplay),
       BAD_MATCH => Err(BadMatch),
-      _ => fail!("Unknown error from eglCreateContext(): {}", res),
+      _ => a_fail!("Unknown error from eglCreateContext(): {}", res),
     }
   }
 }
@@ -278,10 +295,10 @@ pub fn make_current(display: Display, draw: Surface, read: Surface, context: Con
         BAD_NATIVE_WINDOW => Err(BadNativeWindow),
         BAD_SURFACE => Err(BadSurface),
         CONTEXT_LOST => Err(ContextLost),
-        _ => fail!("Unknown error from eglMakeCurrent(): {}", err),
+        _ => a_fail!("Unknown error from eglMakeCurrent(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglMakeCurrent(): {}", res),
+    _ => a_fail!("Unknown return value from eglMakeCurrent(): {}", res),
   }
 }
 
@@ -299,10 +316,10 @@ pub fn query_surface(display: Display, surface: Surface, attribute: Int) -> Resu
         BAD_ATTRIBUTE => Err(BadAttribute),
         BAD_DISPLAY => Err(BadDisplay),
         BAD_SURFACE => Err(BadSurface),
-        _ => fail!("Unknown error from eglQuerySurface(): {}", err),
+        _ => a_fail!("Unknown error from eglQuerySurface(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglQuerySurface(): {}", res),
+    _ => a_fail!("Unknown return value from eglQuerySurface(): {}", res),
   }
 }
 
@@ -319,10 +336,10 @@ pub fn swap_buffers(display: Display, surface: Surface) -> Result<(), Error> {
         BAD_DISPLAY => Err(BadDisplay),
         BAD_SURFACE => Err(BadSurface),
         CONTEXT_LOST => Err(ContextLost),
-        _ => fail!("Unknown error from eglSwapBuffers(): {}", err),
+        _ => a_fail!("Unknown error from eglSwapBuffers(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglSwapBuffers(): {}", res),
+    _ => a_fail!("Unknown return value from eglSwapBuffers(): {}", res),
   }
 }
 
@@ -338,10 +355,10 @@ pub fn destroy_context(display: Display, context: Context) -> Result<(), Error> 
         NOT_INITIALIZED => Err(NotInitialized),
         BAD_DISPLAY => Err(BadDisplay),
         BAD_CONTEXT => Err(BadContext),
-        _ => fail!("Unknown error from eglDestroyContext(): {}", err),
+        _ => a_fail!("Unknown error from eglDestroyContext(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglDestroyContext(): {}", res),
+    _ => a_fail!("Unknown return value from eglDestroyContext(): {}", res),
   }
 }
 
@@ -357,10 +374,10 @@ pub fn destroy_surface(display: Display, surface: Surface) -> Result<(), Error> 
         NOT_INITIALIZED => Err(NotInitialized),
         BAD_DISPLAY => Err(BadDisplay),
         BAD_SURFACE => Err(BadSurface),
-        _ => fail!("Unknown error from eglDestroySurface(): {}", err),
+        _ => a_fail!("Unknown error from eglDestroySurface(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglDestroySurface(): {}", res),
+    _ => a_fail!("Unknown return value from eglDestroySurface(): {}", res),
   }
 }
 
@@ -374,10 +391,10 @@ pub fn terminate(display: Display) -> Result<(), Error> {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
         BAD_DISPLAY => Err(BadDisplay),
-        _ => fail!("Unknown error from eglTerminate(): {}", err),
+        _ => a_fail!("Unknown error from eglTerminate(): {}", err),
       }
     },
-    _ => fail!("Unknown return value from eglTerminate(): {}", res),
+    _ => a_fail!("Unknown return value from eglTerminate(): {}", res),
   }
 }
 

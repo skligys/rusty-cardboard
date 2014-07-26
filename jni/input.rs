@@ -1,5 +1,21 @@
 use libc::{c_float, int32_t, size_t};
 
+use log;
+
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
+
 /// Input event is an opaque structure.
 pub struct Event;
 /// Input queue is for retrieving input events.
@@ -21,7 +37,7 @@ pub fn get_event_type(event: *const Event) -> EventType {
   match res {
     EVENT_TYPE_KEY => Key,
     EVENT_TYPE_MOTION => Motion,
-    _ => fail!("Unknown event type: {}", res),
+    _ => a_fail!("Unknown event type: {}", res),
   }
 }
 

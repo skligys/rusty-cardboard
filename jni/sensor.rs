@@ -5,6 +5,20 @@ use std::ptr;
 
 use log;
 
+// TODO: Figure out how to put macros in a separate module and import when needed.
+
+/// Logs the error to Android error logging and fails.
+macro_rules! a_fail(
+  ($msg: expr) => ({
+    log::e($msg);
+    fail!();
+  });
+  ($fmt: expr, $($arg:tt)*) => ({
+    log::e_f(format!($fmt, $($arg)*));
+    fail!();
+  });
+)
+
 // Opaque structure.
 pub struct Manager;
 // Opaque structure.
@@ -192,10 +206,7 @@ pub fn get_event(queue: &EventQueue) -> Result<Event, c_int> {
   match res {
     1 => Ok(event),
     err if err <= 0 => Err(err),
-    n => {
-      log::e_f(format!("ASensorEventQueue_getEvents returned a positive result but not 1: {}", n));
-      fail!();
-    },
+    n => a_fail!("ASensorEventQueue_getEvents returned a positive result but not 1: {}", n),
   }
 }
 
@@ -265,7 +276,7 @@ pub fn poll_all(timeout_millis: c_int) -> Result<PollResult, PollError> {
     ALOOPER_POLL_TIMEOUT => Err(PollTimeout),
     ALOOPER_POLL_ERROR => Err(PollError),
     id if id >= 0 => Ok(PollResult { id: id, fd: fd, events: events, data: data }),
-    err => fail!("Unknown error from ALooper_pollAll(): {}", err),
+    err => a_fail!("Unknown error from ALooper_pollAll(): {}", err),
   }
 }
 
