@@ -24,8 +24,11 @@ bin/RustyCardboard-release.apk: build.xml jni/main.c jni/Android.mk jni/Applicat
 
 rust: jni/librust.a
 
-jni/librust.a: jni/egl.rs jni/engine.rs jni/gl.rs jni/input.rs jni/log.rs jni/main.rs jni/native_window.rs jni/sensor.rs
-	$(PRE_RUSTC) $(RUSTC) --target=arm-linux-androideabi jni/main.rs -C linker=$(ANDROID_NDK_STANDALONE_HOME)/bin/arm-linux-androideabi-gcc --crate-type=staticlib --opt-level=3 -o jni/librust.a
+jni/librust.a: jni/*.rs jni/libcgmath.rlib
+	$(PRE_RUSTC) $(RUSTC) --target=arm-linux-androideabi jni/main.rs -C linker=$(ANDROID_NDK_STANDALONE_HOME)/bin/arm-linux-androideabi-gcc --crate-type=staticlib --opt-level=3 -o jni/librust.a -L jni
+
+jni/libcgmath.rlib: external/cgmath-rs/src/*.rs
+	$(PRE_RUSTC) $(RUSTC) --target=arm-linux-androideabi external/cgmath-rs/src/cgmath.rs -C linker=$(ANDROID_NDK_STANDALONE_HOME)/bin/arm-linux-androideabi-gcc --crate-type=rlib --opt-level=3 -o jni/libcgmath.rlib
 
 clean:
-	rm -rf obj libs jni/*.a bin
+	rm -rf obj libs jni/*.a jni/*.rlib bin

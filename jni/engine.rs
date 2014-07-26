@@ -1,3 +1,5 @@
+extern crate cgmath;
+
 use libc::{c_float, c_void, malloc, size_t};
 use std::mem;
 use std::ptr;
@@ -5,6 +7,11 @@ use std::default::Default;
 
 use native_window;
 use native_window::ANativeWindow;
+
+use self::cgmath::matrix::Matrix4;
+use self::cgmath::point::Point3;
+use self::cgmath::projection::frustum;
+use self::cgmath::vector::Vector3;
 
 use egl;
 use gl;
@@ -25,14 +32,12 @@ macro_rules! gl_try( ($n: expr, $e: expr) => (
 
 // Saved state data.  Compatible with C.
 struct SavedState {
-  angle: c_float,
-  x: i32,
-  y: i32,
+  angle: c_float,  // in degrees.
 }
 
 impl Default for SavedState {
   fn default() -> SavedState {
-    SavedState { angle: 0.0, x: 0, y: 0 }
+    SavedState { angle: 0.0 }
   }
 }
 
@@ -59,24 +64,24 @@ impl Default for EglContext {
 
 impl EglContext {
   fn swap_buffers(&self) {
-    gl_try!("egl::swap_buffers", egl::swap_buffers(self.display, self.surface));
+    gl_try!("egl::swap_buffers()", egl::swap_buffers(self.display, self.surface));
   }
 }
 
 impl Drop for EglContext {
   fn drop(&mut self) {
     if self.display != egl::NO_DISPLAY {
-      gl_try!("egl::make_current",
+      gl_try!("egl::make_current()",
         egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
       if self.context != egl::NO_CONTEXT {
-        gl_try!("egl::destroy_context", egl::destroy_context(self.display, self.context));
+        gl_try!("egl::destroy_context()", egl::destroy_context(self.display, self.context));
         self.context = egl::NO_CONTEXT;
       }
       if self.surface != egl::NO_SURFACE {
-        gl_try!("egl::destroy_surface", egl::destroy_surface(self.display, self.surface));
+        gl_try!("egl::destroy_surface()", egl::destroy_surface(self.display, self.surface));
         self.surface = egl::NO_SURFACE;
       }
-      gl_try!("egl::terminate", egl::terminate(self.display));
+      gl_try!("egl::terminate()", egl::terminate(self.display));
       self.display = egl::NO_DISPLAY;
     }
   }
@@ -89,6 +94,12 @@ pub struct Engine {
   animating: bool,
   egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
+  // GL bound variables.
+  mvp_matrix: gl::UnifLoc,
+  position: gl::AttribLoc,
+  color: gl::AttribLoc,
+  // GL matrix
+  view_projection_matrix: Matrix4<f32>,
 }
 
 impl Default for Engine {
@@ -99,18 +110,74 @@ impl Default for Engine {
       egl_context: None,
       animating: false,
       state: Default::default(),
+      mvp_matrix: Default::default(),
+      position: Default::default(),
+      color: Default::default(),
+      view_projection_matrix: Matrix4::identity(),
     }
   }
 }
+
+// Red, green, and blue triangle.
+static TRIANGLE_VERTICES: [f32, ..21] = [
+  // X, Y, Z,
+  // R, G, B, A
+  -0.5, -0.25, 0.0,
+  1.0, 0.0, 0.0, 1.0,
+
+  0.5, -0.25, 0.0,
+  0.0, 0.0, 1.0, 1.0,
+
+  0.0, 0.559016994, 0.0,
+  0.0, 1.0, 0.0, 1.0,
+];
+
+static VERTEX_SHADER: &'static str = "\
+  uniform mat4 u_MVPMatrix;\n\
+  attribute vec4 a_Position;\n\
+  attribute vec4 a_Color;\n\
+  varying vec4 v_Color;\n\
+  void main() {\n\
+    v_Color = a_Color;\n\
+    gl_Position = u_MVPMatrix * a_Position;
+  }\n";
+
+static FRAGMENT_SHADER: &'static str = "\
+  precision mediump float;\n\
+  varying vec4 v_Color;\n\
+  void main() {\n\
+    gl_FragColor = v_Color;\n\
+  }\n";
 
 impl Engine {
   /// Initialize the engine.
   pub fn init(&mut self, egl_context: Box<EglContext>) {
     self.egl_context = Some(egl_context);
-    self.state.angle = 0.0;
 
-    gl_try!("gl::enable(gl::CULL_FACE)", gl::enable(gl::CULL_FACE));
-    gl_try!("gl::disable(gl::DEPTH_TEST)", gl::disable(gl::DEPTH_TEST));
+    // Set the background clear color to gray.
+    gl::clear_color(0.5, 0.5, 0.5, 1.0);
+
+    let (mvp_matrix, position, color) = load_program(VERTEX_SHADER, FRAGMENT_SHADER);
+    self.mvp_matrix = mvp_matrix;
+    self.position = position;
+    self.color = color;
+
+    // Set the vertex attributes for position and color.
+    gl_try!("gl::vertex_attrib_pointer_f32(position)", gl::vertex_attrib_pointer_f32(self.position, 3, 7 * 4, TRIANGLE_VERTICES));
+    gl_try!("gl::enable_vertex_attrib_array(position)", gl::enable_vertex_attrib_array(self.position));
+    gl_try!("gl::vertex_attrib_pointer_f32(color)", gl::vertex_attrib_pointer_f32(self.color, 4, 7 * 4, TRIANGLE_VERTICES.slice_from(3)));
+    gl_try!("gl::enable_vertex_attrib_array(color)", gl::enable_vertex_attrib_array(self.color));
+
+    match self.egl_context {
+      Some(ref ec) => {
+        gl_try!("gl::viewport()", gl::viewport(0, 0, ec.width, ec.height));
+        self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
+      },
+      None => {
+        log::e("self.egl_context should be present");
+        fail!();
+      }
+    }
   }
 
   /// Draw a frame.
@@ -118,13 +185,17 @@ impl Engine {
     match self.egl_context {
       None => return,  // No display.
       Some(ref egl_context) => {
-        // Just fill the screen with a color.
-        let r = (self.state.x as f32) / (egl_context.width as f32);
-        let g = self.state.angle;
-        let b = (self.state.y as f32) / (egl_context.height as f32);
-        gl::clear_color(r, g, b, 1.0);
+        gl_try!("gl::clear()", gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT));
 
-        gl_try!("gl::clear(gl::COLOR_BUFFER_BIT)", gl::clear(gl::COLOR_BUFFER_BIT));
+        // Create the model matrix based on the angle.
+        let model_matrix = from_angle_y(self.state.angle);
+        // Compute the composite mvp_matrix and send it to program.
+        let mvp_matrix = self.view_projection_matrix * model_matrix;
+        gl_try!("gl::uniform_matrix4_f32(mvp_matrix)", gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix));
+
+        // Finally, draw the triangle.
+        gl_try!("gl::draw_arrays_triangles()", gl::draw_arrays_triangles(3));
+
         egl_context.swap_buffers();
       }
     }
@@ -134,8 +205,9 @@ impl Engine {
   pub fn update_draw(&mut self) {
     if self.animating {
       // Done processing events; draw next animation frame.
-      self.state.angle += 0.01;
-      if self.state.angle > 1.0 {
+      // Do a complete rotation every 10 seconds, assuming 60 FPS.
+      self.state.angle += 360.0 / 600.0;
+      if self.state.angle > 360.0 {
         self.state.angle = 0.0;
       }
 
@@ -156,8 +228,9 @@ impl Engine {
     match input::get_event_type(event) {
       input::Key => false,
       input::Motion => {
-        self.state.x = input::get_motion_event_x(event, 0) as i32;
-        self.state.y = input::get_motion_event_y(event, 0) as i32;
+        let x = input::get_motion_event_x(event, 0);
+        let y = input::get_motion_event_y(event, 0);
+        log::i_f(format!("Touch at ({}, {})", x, y));
         return true;
       },
     }
@@ -244,11 +317,39 @@ impl Engine {
 
     let saved_state: &mut SavedState = unsafe { &mut *(result as *mut SavedState) };
     saved_state.angle = self.state.angle;
-    saved_state.x = self.state.x;
-    saved_state.y = self.state.y;
 
     (size, result as *mut c_void)
   }
+}
+
+fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
+  // Initialize a static view matrix.
+  let eye = Point3::new(0.0f32, 0.0f32, 1.5f32);
+  let center = Point3::new(0.0f32, 0.0f32, -5.0f32);
+  let up = Vector3::new(0.0f32, 1.0f32, 0.0f32);
+  let view_matrix = Matrix4::look_at(&eye, &center, &up);
+
+  // Initialize perspective projection matrix as frustum matrix.
+  let ratio = width as f32 / height as f32;
+  let left = -ratio;
+  let right = ratio;
+  let bottom = -1.0f32;
+  let top = 1.0f32;
+  let near = 1.0f32;
+  let far = 10.0f32;
+  let projection_matrix = frustum(left, right, bottom, top, near, far);
+
+  projection_matrix * view_matrix
+}
+
+/// Create a matrix from a rotation around the `y` axis (yaw).
+fn from_angle_y(degrees: f32) -> Matrix4<f32> {
+    // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
+    let (s, c) = degrees.to_radians().sin_cos();
+    Matrix4::new(c.clone(),    0.0, -s.clone(), 0.0,
+                       0.0,    1.0,        0.0, 0.0,
+                 s.clone(),    0.0,  c.clone(), 0.0,
+                       0.0,    0.0,        0.0, 1.0)
 }
 
 fn enable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
@@ -284,7 +385,7 @@ fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
 pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
-  gl_try!("egl::initialize", egl::initialize(display));
+  gl_try!("egl::initialize()", egl::initialize(display));
 
   // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
   // at least 8 bits per color component compatible with OpenGL ES 2.0.  A very simplified
@@ -297,7 +398,7 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
     egl::NONE
   ];
   let mut configs = vec!(ptr::null());
-  gl_try!("egl::choose_config", egl::choose_config(display, attribs_config, &mut configs));
+  gl_try!("egl::choose_config()", egl::choose_config(display, attribs_config, &mut configs));
   if configs.len() == 0 {
     log::e("choose_config() did not find any configurations");
     fail!();
@@ -307,21 +408,21 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
   // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
   // reconfigure the ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
-  let format = gl_try!("egl::get_config_attrib",
+  let format = gl_try!("egl::get_config_attrib()",
     egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
   native_window::set_buffers_geometry(window, 0, 0, format);
 
-  let surface = gl_try!("egl::create_window_surface", egl::create_window_surface(display, config, window));
+  let surface = gl_try!("egl::create_window_surface()", egl::create_window_surface(display, config, window));
 
   let attribs_context = [
     egl::CONTEXT_CLIENT_VERSION, 2,
     egl::NONE
   ];
-  let context = gl_try!("egl::create_context_with_attribs",
+  let context = gl_try!("egl::create_context_with_attribs()",
     egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, attribs_context));
 
-  gl_try!("egl::make_current", egl::make_current(display, surface, surface, context));
+  gl_try!("egl::make_current()", egl::make_current(display, surface, surface, context));
 
   let w = gl_try!("egl::query_surface(egl::WIDTH)", egl::query_surface(display, surface, egl::WIDTH));
   let h = gl_try!("egl::query_surface(egl::HEIGHT)", egl::query_surface(display, surface, egl::HEIGHT));
@@ -339,9 +440,46 @@ pub fn restore_saved_state(state: *mut c_void, state_size: size_t) -> SavedState
   if state_size == mem::size_of::<SavedState>() as size_t {
     // Compatible size, can restore.
     let saved_state: &SavedState = unsafe { &*(state as *const SavedState) };
-    SavedState { angle: saved_state.angle, x: saved_state.x, y: saved_state.y }
+    SavedState { angle: saved_state.angle }
   } else {
     // Incompatible size, don't even try to restore.
     Default::default()
   }
+}
+
+fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
+  let shader = gl_try!("gl::create_shader()", gl::create_shader(shader_type));
+  gl_try!("gl::shader_source()", gl::shader_source(shader, shader_string));
+  gl_try!("gl::compile_shader()", gl::compile_shader(shader));
+  let status = gl_try!("gl::get_compile_status()", gl::get_compile_status(shader));
+  if !status {
+    let info_log = gl_try!("gl::get_shader_info_log()", gl::get_shader_info_log(shader));
+    gl_try!("gl::delete_shader()", gl::delete_shader(shader));
+    log::e_f(format!("Compiling shader {} failed: {}", shader_type, info_log));
+    fail!();
+  }
+  shader
+}
+
+fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl::UnifLoc, gl::AttribLoc, gl::AttribLoc) {
+  let vertex_shader = compile_shader(vertex_shader_string, gl::VERTEX_SHADER);
+  let fragment_shader = compile_shader(fragment_shader_string, gl::FRAGMENT_SHADER);
+  let program = gl_try!("gl::create_program()", gl::create_program());
+  gl_try!("gl::attach_shader(vertex_shader)", gl::attach_shader(program, vertex_shader));
+  gl_try!("gl::attach_shader(fragment_shader)", gl::attach_shader(program, fragment_shader));
+  gl_try!("gl::bind_attrib_location(a_Position)", gl::bind_attrib_location(program, 0, "a_Position"));
+  gl_try!("gl::bind_attrib_location(a_Color)", gl::bind_attrib_location(program, 1, "a_Color"));
+  gl_try!("gl::link_program()", gl::link_program(program));
+  let status = gl_try!("gl::get_link_status()", gl::get_link_status(program));
+  if !status {
+    let info_log = gl_try!("gl::get_program_info_log()", gl::get_program_info_log(program));
+    gl_try!("gl::delete_program()", gl::delete_program(program));
+    log::e_f(format!("Linking program failed: {}", info_log));
+    fail!();
+  }
+  let mvp_matrix = gl_try!("gl::get_uniform_location(u_MVPMatrix)", gl::get_uniform_location(program, "u_MVPMatrix"));
+  let position = gl_try!("gl::get_attrib_location(a_Position)", gl::get_attrib_location(program, "a_Position"));
+  let color = gl_try!("gl::get_attrib_location(a_Color", gl::get_attrib_location(program, "a_Color"));
+  gl_try!("gl::use_program()", gl::use_program(program));
+  (mvp_matrix, position, color)
 }
