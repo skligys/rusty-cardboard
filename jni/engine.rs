@@ -19,12 +19,12 @@ use input;
 use log;
 use sensor;
 
-// Macro that logs an Android error on error and terminates.
-macro_rules! gl_try( ($n: expr, $e: expr) => (
+/// On error, logs the error and terminates.  On success, returns the result.
+macro_rules! gl_try( ($e: expr) => (
   match $e {
     Ok(e) => e,
     Err(e) => {
-      log::e_f(format!("{} failed: {}", $n, e));
+      log::e_f(format!("{} failed: {}", stringify!($e), e));
       fail!();
     }
   }
@@ -64,24 +64,23 @@ impl Default for EglContext {
 
 impl EglContext {
   fn swap_buffers(&self) {
-    gl_try!("egl::swap_buffers()", egl::swap_buffers(self.display, self.surface));
+    gl_try!(egl::swap_buffers(self.display, self.surface));
   }
 }
 
 impl Drop for EglContext {
   fn drop(&mut self) {
     if self.display != egl::NO_DISPLAY {
-      gl_try!("egl::make_current()",
-        egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
+      gl_try!(egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
       if self.context != egl::NO_CONTEXT {
-        gl_try!("egl::destroy_context()", egl::destroy_context(self.display, self.context));
+        gl_try!(egl::destroy_context(self.display, self.context));
         self.context = egl::NO_CONTEXT;
       }
       if self.surface != egl::NO_SURFACE {
-        gl_try!("egl::destroy_surface()", egl::destroy_surface(self.display, self.surface));
+        gl_try!(egl::destroy_surface(self.display, self.surface));
         self.surface = egl::NO_SURFACE;
       }
-      gl_try!("egl::terminate()", egl::terminate(self.display));
+      gl_try!(egl::terminate(self.display));
       self.display = egl::NO_DISPLAY;
     }
   }
@@ -163,14 +162,14 @@ impl Engine {
     self.color = color;
 
     // Set the vertex attributes for position and color.
-    gl_try!("gl::vertex_attrib_pointer_f32(position)", gl::vertex_attrib_pointer_f32(self.position, 3, 7 * 4, TRIANGLE_VERTICES));
-    gl_try!("gl::enable_vertex_attrib_array(position)", gl::enable_vertex_attrib_array(self.position));
-    gl_try!("gl::vertex_attrib_pointer_f32(color)", gl::vertex_attrib_pointer_f32(self.color, 4, 7 * 4, TRIANGLE_VERTICES.slice_from(3)));
-    gl_try!("gl::enable_vertex_attrib_array(color)", gl::enable_vertex_attrib_array(self.color));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, 7 * 4, TRIANGLE_VERTICES));
+    gl_try!(gl::enable_vertex_attrib_array(self.position));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.color, 4, 7 * 4, TRIANGLE_VERTICES.slice_from(3)));
+    gl_try!(gl::enable_vertex_attrib_array(self.color));
 
     match self.egl_context {
       Some(ref ec) => {
-        gl_try!("gl::viewport()", gl::viewport(0, 0, ec.width, ec.height));
+        gl_try!(gl::viewport(0, 0, ec.width, ec.height));
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
       None => {
@@ -185,16 +184,16 @@ impl Engine {
     match self.egl_context {
       None => return,  // No display.
       Some(ref egl_context) => {
-        gl_try!("gl::clear()", gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT));
+        gl_try!(gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT));
 
         // Create the model matrix based on the angle.
         let model_matrix = from_angle_y(self.state.angle);
         // Compute the composite mvp_matrix and send it to program.
         let mvp_matrix = self.view_projection_matrix * model_matrix;
-        gl_try!("gl::uniform_matrix4_f32(mvp_matrix)", gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix));
+        gl_try!(gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix));
 
         // Finally, draw the triangle.
-        gl_try!("gl::draw_arrays_triangles()", gl::draw_arrays_triangles(3));
+        gl_try!(gl::draw_arrays_triangles(3));
 
         egl_context.swap_buffers();
       }
@@ -385,7 +384,7 @@ fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
 pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
-  gl_try!("egl::initialize()", egl::initialize(display));
+  gl_try!(egl::initialize(display));
 
   // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
   // at least 8 bits per color component compatible with OpenGL ES 2.0.  A very simplified
@@ -398,7 +397,7 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
     egl::NONE
   ];
   let mut configs = vec!(ptr::null());
-  gl_try!("egl::choose_config()", egl::choose_config(display, attribs_config, &mut configs));
+  gl_try!(egl::choose_config(display, attribs_config, &mut configs));
   if configs.len() == 0 {
     log::e("choose_config() did not find any configurations");
     fail!();
@@ -408,24 +407,22 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
   // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
   // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
   // reconfigure the ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
-  let format = gl_try!("egl::get_config_attrib()",
-    egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
+  let format = gl_try!(egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
   native_window::set_buffers_geometry(window, 0, 0, format);
 
-  let surface = gl_try!("egl::create_window_surface()", egl::create_window_surface(display, config, window));
+  let surface = gl_try!(egl::create_window_surface(display, config, window));
 
   let attribs_context = [
     egl::CONTEXT_CLIENT_VERSION, 2,
     egl::NONE
   ];
-  let context = gl_try!("egl::create_context_with_attribs()",
-    egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, attribs_context));
+  let context = gl_try!(egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, attribs_context));
 
-  gl_try!("egl::make_current()", egl::make_current(display, surface, surface, context));
+  gl_try!(egl::make_current(display, surface, surface, context));
 
-  let w = gl_try!("egl::query_surface(egl::WIDTH)", egl::query_surface(display, surface, egl::WIDTH));
-  let h = gl_try!("egl::query_surface(egl::HEIGHT)", egl::query_surface(display, surface, egl::HEIGHT));
+  let w = gl_try!(egl::query_surface(display, surface, egl::WIDTH));
+  let h = gl_try!(egl::query_surface(display, surface, egl::HEIGHT));
 
   box EglContext {
     display: display,
@@ -448,13 +445,13 @@ pub fn restore_saved_state(state: *mut c_void, state_size: size_t) -> SavedState
 }
 
 fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
-  let shader = gl_try!("gl::create_shader()", gl::create_shader(shader_type));
-  gl_try!("gl::shader_source()", gl::shader_source(shader, shader_string));
-  gl_try!("gl::compile_shader()", gl::compile_shader(shader));
-  let status = gl_try!("gl::get_compile_status()", gl::get_compile_status(shader));
+  let shader = gl_try!(gl::create_shader(shader_type));
+  gl_try!(gl::shader_source(shader, shader_string));
+  gl_try!(gl::compile_shader(shader));
+  let status = gl_try!(gl::get_compile_status(shader));
   if !status {
-    let info_log = gl_try!("gl::get_shader_info_log()", gl::get_shader_info_log(shader));
-    gl_try!("gl::delete_shader()", gl::delete_shader(shader));
+    let info_log = gl_try!(gl::get_shader_info_log(shader));
+    gl_try!(gl::delete_shader(shader));
     log::e_f(format!("Compiling shader {} failed: {}", shader_type, info_log));
     fail!();
   }
@@ -464,22 +461,22 @@ fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
 fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl::UnifLoc, gl::AttribLoc, gl::AttribLoc) {
   let vertex_shader = compile_shader(vertex_shader_string, gl::VERTEX_SHADER);
   let fragment_shader = compile_shader(fragment_shader_string, gl::FRAGMENT_SHADER);
-  let program = gl_try!("gl::create_program()", gl::create_program());
-  gl_try!("gl::attach_shader(vertex_shader)", gl::attach_shader(program, vertex_shader));
-  gl_try!("gl::attach_shader(fragment_shader)", gl::attach_shader(program, fragment_shader));
-  gl_try!("gl::bind_attrib_location(a_Position)", gl::bind_attrib_location(program, 0, "a_Position"));
-  gl_try!("gl::bind_attrib_location(a_Color)", gl::bind_attrib_location(program, 1, "a_Color"));
-  gl_try!("gl::link_program()", gl::link_program(program));
-  let status = gl_try!("gl::get_link_status()", gl::get_link_status(program));
+  let program = gl_try!(gl::create_program());
+  gl_try!(gl::attach_shader(program, vertex_shader));
+  gl_try!(gl::attach_shader(program, fragment_shader));
+  gl_try!(gl::bind_attrib_location(program, 0, "a_Position"));
+  gl_try!(gl::bind_attrib_location(program, 1, "a_Color"));
+  gl_try!(gl::link_program(program));
+  let status = gl_try!(gl::get_link_status(program));
   if !status {
-    let info_log = gl_try!("gl::get_program_info_log()", gl::get_program_info_log(program));
-    gl_try!("gl::delete_program()", gl::delete_program(program));
+    let info_log = gl_try!(gl::get_program_info_log(program));
+    gl_try!(gl::delete_program(program));
     log::e_f(format!("Linking program failed: {}", info_log));
     fail!();
   }
-  let mvp_matrix = gl_try!("gl::get_uniform_location(u_MVPMatrix)", gl::get_uniform_location(program, "u_MVPMatrix"));
-  let position = gl_try!("gl::get_attrib_location(a_Position)", gl::get_attrib_location(program, "a_Position"));
-  let color = gl_try!("gl::get_attrib_location(a_Color", gl::get_attrib_location(program, "a_Color"));
-  gl_try!("gl::use_program()", gl::use_program(program));
+  let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
+  let position = gl_try!(gl::get_attrib_location(program, "a_Position"));
+  let color = gl_try!(gl::get_attrib_location(program, "a_Color"));
+  gl_try!(gl::use_program(program));
   (mvp_matrix, position, color)
 }
