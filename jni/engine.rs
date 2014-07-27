@@ -10,7 +10,7 @@ use native_window::ANativeWindow;
 
 use self::cgmath::matrix::Matrix4;
 use self::cgmath::point::Point3;
-use self::cgmath::projection::frustum;
+use self::cgmath::projection;
 use self::cgmath::vector::Vector3;
 
 use egl;
@@ -333,20 +333,20 @@ impl Engine {
 
 fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   // Initialize a static view matrix.
-  let eye = Point3::new(0.0f32, 0.0f32, 1.5f32);
-  let center = Point3::new(0.0f32, 0.0f32, -5.0f32);
-  let up = Vector3::new(0.0f32, 1.0f32, 0.0f32);
+  let eye = Point3::new(0.0, 0.0, 1.5);
+  let center = Point3::new(0.0, 0.0, -5.0);
+  let up = Vector3::new(0.0, 1.0, 0.0);
   let view_matrix = Matrix4::look_at(&eye, &center, &up);
 
   // Initialize perspective projection matrix as frustum matrix.
   let ratio = width as f32 / height as f32;
   let left = -ratio;
   let right = ratio;
-  let bottom = -1.0f32;
-  let top = 1.0f32;
-  let near = 1.0f32;
-  let far = 10.0f32;
-  let projection_matrix = frustum(left, right, bottom, top, near, far);
+  let bottom = -1.0;
+  let top = 1.0;
+  let near = 1.0;
+  let far = 10.0;
+  let projection_matrix = projection::frustum(left, right, bottom, top, near, far);
 
   projection_matrix * view_matrix
 }
@@ -355,10 +355,10 @@ fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
 fn from_angle_y(degrees: f32) -> Matrix4<f32> {
     // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
     let (s, c) = degrees.to_radians().sin_cos();
-    Matrix4::new(c.clone(),    0.0, -s.clone(), 0.0,
-                       0.0,    1.0,        0.0, 0.0,
-                 s.clone(),    0.0,  c.clone(), 0.0,
-                       0.0,    0.0,        0.0, 1.0)
+    Matrix4::new(   c, 0.0,  -s, 0.0,
+                  0.0, 1.0, 0.0, 0.0,
+                    s, 0.0,   c, 0.0,
+                  0.0, 0.0, 0.0, 1.0)
 }
 
 fn enable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
