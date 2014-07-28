@@ -5,9 +5,6 @@ use std::mem;
 use std::ptr;
 use std::default::Default;
 
-use native_window;
-use native_window::ANativeWindow;
-
 use self::cgmath::matrix::Matrix4;
 use self::cgmath::point::Point3;
 use self::cgmath::projection;
@@ -17,6 +14,7 @@ use egl;
 use gl;
 use input;
 use log;
+use native_window;
 use sensor;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
@@ -382,7 +380,7 @@ fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
   };
 }
 
-pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
+pub fn create_egl_context(window: *const native_window::NativeWindow) -> Box<EglContext> {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   gl_try!(egl::initialize(display));
@@ -406,7 +404,7 @@ pub fn create_egl_context(window: *const ANativeWindow) -> Box<EglContext> {
 
   // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
   // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
-  // reconfigure the ANativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
+  // reconfigure the NativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
   let format = gl_try!(egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
   native_window::set_buffers_geometry(window, 0, 0, format);

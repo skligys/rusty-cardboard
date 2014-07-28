@@ -95,9 +95,9 @@ pub static LOOPER_ID_USER: c_int = 3;
  * means (internally) polling on all of these file descriptors until one or more of them have data
  * available.
  *
- * A thread can have only one ALooper associated with it.
+ * A thread can have only one Looper associated with it.
 */
-pub struct ALooper;
+pub struct Looper;
 
 /**
  * For callback-based event loops, this is the prototype of the function that is called when a file
@@ -142,7 +142,7 @@ pub fn get_default_sensor(sensor_type: c_int) -> Option<&'static Sensor> {
 }
 
 /// Creates a new sensor event queue and associates it with a looper.
-pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> &'static EventQueue {
+pub fn create_event_queue(looper: *const Looper, ident: c_int) -> &'static EventQueue {
   let manager = get_instance();
   let queue_ptr = unsafe {
     ASensorManager_createEventQueue(manager, looper, ident, ptr::null(), ptr::null())
@@ -156,7 +156,7 @@ pub fn create_event_queue(looper: *const ALooper, ident: c_int) -> &'static Even
  * event callback.
  */
 #[allow(dead_code)]
-pub fn create_event_queue_with_callback(looper: *const ALooper, ident: c_int,
+pub fn create_event_queue_with_callback(looper: *const Looper, ident: c_int,
   callback: LooperCallback, data: *const c_void) -> &'static EventQueue {
   let manager = get_instance();
   let queue_ptr = unsafe {
@@ -283,7 +283,7 @@ pub fn poll_all(timeout_millis: c_int) -> Result<PollResult, PollError> {
 extern {
   fn ASensorManager_getInstance() -> *const Manager;
   fn ASensorManager_getDefaultSensor(manager: *const Manager, sensor_type: c_int) -> *const Sensor;
-  fn ASensorManager_createEventQueue(manager: *const Manager, looper: *const ALooper, ident: c_int,
+  fn ASensorManager_createEventQueue(manager: *const Manager, looper: *const Looper, ident: c_int,
     callback: LooperCallback, data: *const c_void) -> *mut EventQueue;
   // We are lying about event queue pointer being const, since otherwise Rust is not happy about
   // multiple mutable borrows while polling the sensor event queue and couldn't figure it out.

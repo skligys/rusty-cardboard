@@ -2,7 +2,6 @@
 
 extern crate libc;
 use libc::{c_int, c_void, int32_t, size_t};
-use native_window::ANativeWindow;
 use std::default::Default;
 pub use input::Event;
 
@@ -29,16 +28,15 @@ macro_rules! a_fail(
 )
 
 /**
- * This structure defines the native side of an android.app.NativeActivity.
- * It is created by the framework, and handed to the application's native
- * code as it is being launched.
+ * This structure defines the native side of an android.app.NativeActivity.  It is created by
+ * the framework, and handed to the application's native code as it is being launched.
  */
-struct ANativeActivity;
+struct NativeActivity;
 
 /// Opaque structure representing Android configuration.
-struct AConfiguration;
+struct Configuration;
 
-struct ARect {
+struct Rect {
   #[allow(dead_code)]
   left: i32,
   #[allow(dead_code)]
@@ -63,12 +61,12 @@ pub struct AndroidApp {
   // been pre-dispatched, and it will be finished upon return.  Return 1 if you have handled
   // the event, 0 for any default dispatching.
   on_input_event: *const c_void,
-  // The ANativeActivity object instance that this app is running in.
+  // The NativeActivity object instance that this app is running in.
   #[allow(dead_code)]
-  activity: *const ANativeActivity,
+  activity: *const NativeActivity,
   // The current configuration the app is running in.
   #[allow(dead_code)]
-  config: *const AConfiguration,
+  config: *const Configuration,
   // This is the last instance's saved state, as provided at creation time.  It is NULL if there
   // was no state.  You can use this as you need; the memory will remain around until you call
   // android_app_exec_cmd() for APP_CMD_RESUME, at which point it will be freed and savedState
@@ -78,16 +76,16 @@ pub struct AndroidApp {
   saved_state: *mut c_void,
   saved_state_size: size_t,
   // The looper associated with the app's thread.
-  looper: *const sensor::ALooper,
+  looper: *const sensor::Looper,
   // When non-NULL, this is the input queue from which the app will receive user input events.
   #[allow(dead_code)]
   input_queue: *const input::Queue,
   // When non-NULL, this is the window surface that the app can draw in.
-  window: *const ANativeWindow,
+  window: *const native_window::NativeWindow,
   // Current content rectangle of the window; this is the area where the window's content should be
   // placed to be seen by the user.
   #[allow(dead_code)]
-  content_rect: ARect,
+  content_rect: Rect,
   // Current state of the app's activity.  May be either APP_CMD_START, APP_CMD_RESUME,
   // APP_CMD_PAUSE, or APP_CMD_STOP; see below.
   #[allow(dead_code)]
@@ -171,7 +169,7 @@ pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
 }
 
 /**
- * Data associated with an ALooper fd that will be returned as the "data" when that source has
+ * Data associated with an Looper fd that will be returned as the "data" when that source has
  * data ready.
  */
 struct AndroidPollSource {

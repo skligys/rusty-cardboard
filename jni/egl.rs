@@ -4,9 +4,8 @@ use std::ptr;
 use std::result::Result;
 use std::vec::Vec;
 
-use native_window::ANativeWindow;
-
 use log;
+use native_window;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
@@ -51,7 +50,7 @@ pub static CONTEXT_CLIENT_VERSION: Int = 0x3098;
 pub static HEIGHT: Int = 0x3056;
 pub static WIDTH: Int = 0x3057;
 
-type NativeWindowType = *const ANativeWindow;
+type NativeWindowType = *const native_window::NativeWindow;
 
 type Int = i32;
 
