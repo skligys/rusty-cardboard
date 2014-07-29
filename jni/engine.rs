@@ -31,6 +31,14 @@ macro_rules! a_fail(
   });
 )
 
+/// Logs to Android info logging.
+macro_rules! a_info(
+  ($msg: expr) => ( log::i($msg); );
+  ($fmt: expr, $($arg:tt)*) => (
+    log::i_f(format!($fmt, $($arg)*));
+  );
+)
+
 /// On error, logs the error and terminates.  On success, returns the result.
 macro_rules! gl_try(
   ($e: expr) => (
@@ -227,7 +235,7 @@ impl Engine {
   pub fn term(&mut self) {
     self.animating = false;
     self.egl_context = None;  // This closes the existing context via Drop.
-    log::i("Renderer terminated");
+    a_info!("Renderer terminated");
   }
 
   /// Handle touch and key input.  Return true if you handled event, false for any default handling.
@@ -237,7 +245,7 @@ impl Engine {
       input::Motion => {
         let x = input::get_motion_event_x(event, 0);
         let y = input::get_motion_event_y(event, 0);
-        log::i_f(format!("Touch at ({}, {})", x, y));
+        a_info!("Touch at ({}, {})", x, y);
         return true;
       },
     }

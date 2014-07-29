@@ -29,6 +29,14 @@ macro_rules! a_fail(
   });
 )
 
+/// Logs to Android info logging.
+macro_rules! a_info(
+  ($msg: expr) => ( log::i($msg); );
+  ($fmt: expr, $($arg:tt)*) => (
+    log::i_f(format!($fmt, $($arg)*));
+  );
+)
+
 /**
  * This structure defines the native side of an android.app.NativeActivity.  It is created by
  * the framework, and handed to the application's native code as it is being launched.
@@ -100,13 +108,13 @@ pub struct AndroidApp {
 
 /// Initialize EGL context for the current display.
 fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
-  log::i("Renderer initializing...");
+  a_info!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let window = unsafe { (*app_ptr).window };
   let egl_context = engine::create_egl_context(window);
   engine.init(egl_context);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
-  log::i_f(format!("Renderer initialized, {:.3f}ms", elapsed_ms));
+  a_info!("Renderer initialized, {:.3f}ms", elapsed_ms);
 }
 
 /// Process the next input event.
@@ -233,7 +241,7 @@ fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut engine::Engine) {
  */
 #[no_mangle]
 pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
-  log::i("-------------------------------------------------------------------");
+  a_info!("-------------------------------------------------------------------");
 
   let app: &mut AndroidApp = unsafe { &mut *app_ptr };
   let mut engine = engine::Engine {
