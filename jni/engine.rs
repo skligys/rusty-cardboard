@@ -1,4 +1,5 @@
 extern crate cgmath;
+extern crate png;
 
 use libc::{c_char, c_float, c_uchar, c_void, int32_t, malloc, off_t, size_t};
 use std::default::Default;
@@ -10,6 +11,7 @@ use self::cgmath::matrix::Matrix4;
 use self::cgmath::point::Point3;
 use self::cgmath::projection;
 use self::cgmath::vector::Vector3;
+use self::png::load_png_from_memory;
 
 use asset_manager;
 use egl;
@@ -222,13 +224,19 @@ impl Engine {
     // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
     let jvm_attach = PthreadJvmAttach::new(self.jvm);
 
-    match load_asset(self.asset_manager, "atlas.png") {
-      Ok(vec) => {
-        a_info!("Texture atlas size in bytes: {}", vec.len());
-        a_info!("PNG file signature: {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}",
-          *vec.get(0), *vec.get(1), *vec.get(2), *vec.get(3), *vec.get(4), *vec.get(5), *vec.get(6), *vec.get(7));
+    let vec = load_asset(self.asset_manager, "atlas.png")
+      .unwrap_or_else(|i| a_fail!("load_asset() failed: {}", i));
+
+    a_info!("Texture atlas size in bytes: {}", vec.len());
+    a_info!("PNG file signature: {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}",
+      *vec.get(0), *vec.get(1), *vec.get(2), *vec.get(3), *vec.get(4), *vec.get(5), *vec.get(6), *vec.get(7));
+
+    match load_png_from_memory(vec.as_slice()) {
+      Ok(im) => {
+        a_info!("Loaded PNG texture: {}x{}, {}", im.width, im.height, im.color_type);
+        a_info!("  pixel vector length: {}", im.pixels.len());
       },
-      Err(s) => a_fail!("load_asset() failed: {}", s),
+      Err(s) => a_fail!("load_png_from_memory() failed: {}", s),
     }
   }
 
