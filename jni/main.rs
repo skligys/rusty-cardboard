@@ -1,6 +1,8 @@
 #![feature(macro_rules)]
 
 extern crate libc;
+extern crate time;
+
 use libc::{c_int, c_void, int32_t, size_t};
 use std::default::Default;
 pub use input::Event;
@@ -98,10 +100,13 @@ pub struct AndroidApp {
 
 /// Initialize EGL context for the current display.
 fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
-  log::i("Renderer initializing");
+  log::i("Renderer initializing...");
+  let start_ns = time::precise_time_ns();
   let window = unsafe { (*app_ptr).window };
   let egl_context = engine::create_egl_context(window);
   engine.init(egl_context);
+  let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
+  log::i_f(format!("Renderer initialized, {:.3f}ms", elapsed_ms));
 }
 
 /// Process the next input event.
