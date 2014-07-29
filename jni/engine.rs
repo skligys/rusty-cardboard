@@ -388,7 +388,7 @@ fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
   };
 }
 
-pub fn create_egl_context(window: *const native_window::NativeWindow) -> Box<EglContext> {
+pub fn create_egl_context(window: *const native_window::NativeWindow) -> EglContext {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   gl_try!(egl::initialize(display));
@@ -430,7 +430,7 @@ pub fn create_egl_context(window: *const native_window::NativeWindow) -> Box<Egl
   let w = gl_try!(egl::query_surface(display, surface, egl::WIDTH));
   let h = gl_try!(egl::query_surface(display, surface, egl::HEIGHT));
 
-  box EglContext {
+  EglContext {
     display: display,
     surface: surface,
     context: context,

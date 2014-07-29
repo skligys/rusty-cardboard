@@ -111,7 +111,7 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
   a_info!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let window = unsafe { (*app_ptr).window };
-  let egl_context = engine::create_egl_context(window);
+  let egl_context = box engine::create_egl_context(window);
   engine.init(egl_context);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
   a_info!("Renderer initialized, {:.3f}ms", elapsed_ms);
