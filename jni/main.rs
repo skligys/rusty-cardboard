@@ -1,16 +1,29 @@
 #![feature(macro_rules)]
 
+extern crate cgmath;
 extern crate libc;
 extern crate time;
 
-use libc::{c_int, c_void, int32_t, size_t};
+use libc::{c_void, int32_t};
 use std::default::Default;
-pub use input::Event;
 
+// To avoid warning: private type in exported type signature
+pub use app::{AndroidApp, NativeActivity};
+pub use asset_manager::AssetManager;
+pub use input::Event;
+pub use jni::JavaVm;
+pub use native_window::NativeWindow;
+pub use sensor::Looper;
+
+use self::cgmath::matrix::Matrix4;
+
+mod app;
+mod asset_manager;
 mod egl;
 mod engine;
 mod gl;
 mod input;
+mod jni;
 mod native_window;
 mod log;
 mod sensor;
@@ -37,77 +50,8 @@ macro_rules! a_info(
   );
 )
 
-/**
- * This structure defines the native side of an android.app.NativeActivity.  It is created by
- * the framework, and handed to the application's native code as it is being launched.
- */
-struct NativeActivity;
-
-/// Opaque structure representing Android configuration.
-struct Configuration;
-
-struct Rect {
-  #[allow(dead_code)]
-  left: i32,
-  #[allow(dead_code)]
-  top: i32,
-  #[allow(dead_code)]
-  right: i32,
-  #[allow(dead_code)]
-  bottom: i32,
-}
-
-// This is the interface for the standard glue code of a threaded application.  In this model, the
-// application's code is running in its own thread separate from the main thread of the process.
-// It is not required that this thread be associated with the Java VM, although it will need to be
-// in order to make JNI calls to any Java objects.  Compatible with C.
-pub struct AndroidApp {
-  // The application can place a pointer to its own state object here if it likes.
-  user_data: *const c_void,
-  // Fill this in with the function to process main app commands (APP_CMD_*)
-  // TODO: implement.
-  on_app_cmd: *const c_void,
-  // Fill this in with the function to process input events.  At this point the event has already
-  // been pre-dispatched, and it will be finished upon return.  Return 1 if you have handled
-  // the event, 0 for any default dispatching.
-  on_input_event: *const c_void,
-  // The NativeActivity object instance that this app is running in.
-  #[allow(dead_code)]
-  activity: *const NativeActivity,
-  // The current configuration the app is running in.
-  #[allow(dead_code)]
-  config: *const Configuration,
-  // This is the last instance's saved state, as provided at creation time.  It is NULL if there
-  // was no state.  You can use this as you need; the memory will remain around until you call
-  // android_app_exec_cmd() for APP_CMD_RESUME, at which point it will be freed and savedState
-  // set to NULL.  These variables should only be changed when processing a APP_CMD_SAVE_STATE,
-  // at which point they will be initialized to NULL and you can malloc your state and place
-  // the information here.  In that case the memory will be freed for you later.
-  saved_state: *mut c_void,
-  saved_state_size: size_t,
-  // The looper associated with the app's thread.
-  looper: *const sensor::Looper,
-  // When non-NULL, this is the input queue from which the app will receive user input events.
-  #[allow(dead_code)]
-  input_queue: *const input::Queue,
-  // When non-NULL, this is the window surface that the app can draw in.
-  window: *const native_window::NativeWindow,
-  // Current content rectangle of the window; this is the area where the window's content should be
-  // placed to be seen by the user.
-  #[allow(dead_code)]
-  content_rect: Rect,
-  // Current state of the app's activity.  May be either APP_CMD_START, APP_CMD_RESUME,
-  // APP_CMD_PAUSE, or APP_CMD_STOP; see below.
-  #[allow(dead_code)]
-  activity_state: c_int,
-  // This is non-zero when the application's NativeActivity is being destroyed and waiting for
-  // the app thread to complete.
-  destroy_requested: c_int,
-  // Plus some private implementation details.
-}
-
 /// Initialize EGL context for the current display.
-fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
+fn init_display(app_ptr: *mut app::AndroidApp, engine: &mut engine::Engine) {
   a_info!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let window = unsafe { (*app_ptr).window };
@@ -119,7 +63,7 @@ fn init_display(app_ptr: *mut AndroidApp, engine: &mut engine::Engine) {
 
 /// Process the next input event.
 #[no_mangle]
-pub extern fn handle_input(app: *mut AndroidApp, event_ptr: *const input::Event) -> int32_t {
+pub extern fn handle_input(app: *mut app::AndroidApp, event_ptr: *const input::Event) -> int32_t {
   let engine_ptr = unsafe { (*app).user_data as *mut engine::Engine };
   if engine_ptr.is_null() {
     a_fail!("Engine pointer is null");
@@ -132,20 +76,13 @@ pub extern fn handle_input(app: *mut AndroidApp, event_ptr: *const input::Event)
   }
 }
 
-// Native app glue command enums:
-static APP_CMD_INIT_WINDOW: int32_t = 1;
-static APP_CMD_TERM_WINDOW: int32_t = 2;
-static APP_CMD_GAINED_FOCUS: int32_t = 6;
-static APP_CMD_LOST_FOCUS: int32_t = 7;
-static APP_CMD_SAVE_STATE: int32_t = 12;
-
 /// Process the next main command.
 // Application lifecycle: APP_CMD_START, APP_CMD_RESUME, APP_CMD_INPUT_CHANGED,
 // APP_CMD_INIT_WINDOW, APP_CMD_GAINED_FOCUS, ...,
 // APP_CMD_SAVE_STATE, APP_CMD_PAUSE, APP_CMD_LOST_FOCUS, APP_CMD_TERM_WINDOW,
 // APP_CMD_STOP.
 #[no_mangle]
-pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
+pub extern fn handle_cmd(app_ptr: *mut app::AndroidApp, command: int32_t) {
   let engine_ptr = unsafe { (*app_ptr).user_data as *mut engine::Engine };
   if engine_ptr.is_null() {
     a_fail!("Engine pointer is null");
@@ -153,26 +90,26 @@ pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
 
   match command {
-    APP_CMD_INIT_WINDOW => {
+    app::CMD_INIT_WINDOW => {
       // The window is being shown, get it ready.
       if unsafe { !(*app_ptr).window.is_null() } {
         init_display(app_ptr, engine);
         engine.draw();
       }
     },
-    APP_CMD_TERM_WINDOW => {
+    app::CMD_TERM_WINDOW => {
       // The window is being hidden or closed, clean it up.
       engine.term();
     },
-    APP_CMD_GAINED_FOCUS => {
+    app::CMD_GAINED_FOCUS => {
       engine.gained_focus();
     },
-    APP_CMD_LOST_FOCUS => {
+    app::CMD_LOST_FOCUS => {
       engine.lost_focus();
     },
-    APP_CMD_SAVE_STATE => {
+    app::CMD_SAVE_STATE => {
       // The system has asked us to save our current state.  Do so.
-      let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+      let app: &mut app::AndroidApp = unsafe { &mut *app_ptr };
       let (size, saved_state) = engine.save_state();
       app.saved_state = saved_state;
       app.saved_state_size = size;
@@ -181,23 +118,8 @@ pub extern fn handle_cmd(app_ptr: *mut AndroidApp, command: int32_t) {
   }
 }
 
-/**
- * Data associated with an Looper fd that will be returned as the "data" when that source has
- * data ready.
- */
-struct AndroidPollSource {
-  /// The identifier of this source.  May be LOOPER_ID_MAIN or LOOPER_ID_INPUT.
-  #[allow(dead_code)]
-  id: int32_t,
-  /// The android_app this ident is associated with.
-  #[allow(dead_code)]
-  app: *const AndroidApp,
-  /// Function to call to perform the standard processing of data from this source.
-  process: extern "C" fn (app: *mut AndroidApp, source: *const AndroidPollSource),
-}
-
-fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut engine::Engine) {
-  let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+fn rust_event_loop(app_ptr: *mut app::AndroidApp, engine_ptr: *mut engine::Engine) {
+  let app: &mut app::AndroidApp = unsafe { &mut *app_ptr };
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
 
   // Loop waiting for stuff to do.
@@ -210,11 +132,11 @@ fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut engine::Engine) {
         Ok(poll_result) => {
           // Process this event.
           if !poll_result.data.is_null() {
-            let source: &AndroidPollSource = unsafe {
-              &*(poll_result.data as *const AndroidPollSource)
+            let source: &app::AndroidPollSource = unsafe {
+              &*(poll_result.data as *const app::AndroidPollSource)
             };
             let process = source.process;
-            process(app_ptr, source as *const AndroidPollSource);
+            process(app_ptr, source as *const app::AndroidPollSource);
           }
 
           // If the sensor has data, process it now.
@@ -240,20 +162,32 @@ fn rust_event_loop(app_ptr: *mut AndroidApp, engine_ptr: *mut engine::Engine) {
  * things.
  */
 #[no_mangle]
-pub extern fn rust_android_main(app_ptr: *mut AndroidApp) {
+pub extern fn rust_android_main(app_ptr: *mut app::AndroidApp) {
   a_info!("-------------------------------------------------------------------");
 
-  let app: &mut AndroidApp = unsafe { &mut *app_ptr };
+  let app: &mut app::AndroidApp = unsafe { &mut *app_ptr };
+  let activity: &app::NativeActivity = unsafe { &*app.activity };
+  let jvm: &jni::JavaVm = unsafe { &*activity.vm };
+  let asset_manager: &asset_manager::AssetManager = unsafe { &*activity.asset_manager };
+
   let mut engine = engine::Engine {
+    jvm: jvm,
+    asset_manager: asset_manager,
     accelerometer_sensor: sensor::get_default_sensor(sensor::TYPE_ACCELEROMETER),
     sensor_event_queue: Some(sensor::create_event_queue(app.looper, sensor::LOOPER_ID_USER)),
+    animating: false,
+    egl_context: None,
     state: if app.saved_state.is_null() {
       Default::default()
     } else {
       // We are starting with a previous saved state; restore from it.
       engine::restore_saved_state(app.saved_state, app.saved_state_size)
     },
-    ..Default::default()};
+    mvp_matrix: Default::default(),
+    position: Default::default(),
+    color: Default::default(),
+    view_projection_matrix: Matrix4::identity(),
+  };
 
   // Notify the system about our custom data and callbacks.
   app.user_data = &engine as *const engine::Engine as *const c_void;

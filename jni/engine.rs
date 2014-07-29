@@ -1,18 +1,21 @@
 extern crate cgmath;
 
-use libc::{c_float, c_void, malloc, size_t};
+use libc::{c_char, c_float, c_uchar, c_void, int32_t, malloc, off_t, size_t};
+use std::default::Default;
 use std::mem;
 use std::ptr;
-use std::default::Default;
+use std::vec;
 
 use self::cgmath::matrix::Matrix4;
 use self::cgmath::point::Point3;
 use self::cgmath::projection;
 use self::cgmath::vector::Vector3;
 
+use asset_manager;
 use egl;
 use gl;
 use input;
+use jni;
 use log;
 use native_window;
 use sensor;
@@ -105,35 +108,22 @@ impl Drop for EglContext {
   }
 }
 
-// Shared state for our app.  Compatible with C.
+// Shared state for our app.
+// TODO: Find a way not to declare all fields public.
 pub struct Engine {
+  pub jvm: &'static jni::JavaVm,
+  pub asset_manager: &'static asset_manager::AssetManager,
   pub accelerometer_sensor: Option<&'static sensor::Sensor>,
   pub sensor_event_queue: Option<&'static sensor::EventQueue>,
-  animating: bool,
-  egl_context: Option<Box<EglContext>>,
+  pub animating: bool,
+  pub egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
   // GL bound variables.
-  mvp_matrix: gl::UnifLoc,
-  position: gl::AttribLoc,
-  color: gl::AttribLoc,
+  pub mvp_matrix: gl::UnifLoc,
+  pub position: gl::AttribLoc,
+  pub color: gl::AttribLoc,
   // GL matrix
-  view_projection_matrix: Matrix4<f32>,
-}
-
-impl Default for Engine {
-  fn default() -> Engine {
-    Engine {
-      accelerometer_sensor: None,
-      sensor_event_queue: None,
-      egl_context: None,
-      animating: false,
-      state: Default::default(),
-      mvp_matrix: Default::default(),
-      position: Default::default(),
-      color: Default::default(),
-      view_projection_matrix: Matrix4::identity(),
-    }
-  }
+  pub view_projection_matrix: Matrix4<f32>,
 }
 
 // Red, green, and blue triangle.
@@ -167,6 +157,35 @@ static FRAGMENT_SHADER: &'static str = "\
     gl_FragColor = v_Color;\n\
   }\n";
 
+  /// RAII for attachment from current pthread to JVM.  Auto-detaches when it goes out of scope.
+  struct PthreadJvmAttach {
+    jvm: &'static jni::JavaVm,
+  }
+
+  impl PthreadJvmAttach {
+    fn new(jvm: &'static jni::JavaVm) -> PthreadJvmAttach {
+      let res = unsafe {
+        c_attach_current_thread_to_jvm(jvm)
+      };
+      if res < 0 {
+        a_fail!("Failed to attach pthread to JVM, status: {}", res);
+      }
+
+      PthreadJvmAttach { jvm : jvm }
+    }
+  }
+
+  impl Drop for PthreadJvmAttach {
+    fn drop(&mut self) {
+      let res = unsafe {
+        c_detach_current_thread_from_jvm(self.jvm)
+      };
+      if res < 0 {
+        a_fail!("Failed to detach pthread to JVM, status: {}", res);
+      }
+    }
+  }
+
 impl Engine {
   /// Initialize the engine.
   pub fn init(&mut self, egl_context: Box<EglContext>) {
@@ -192,6 +211,24 @@ impl Engine {
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
       None => a_fail!("self.egl_context should be present"),
+    }
+
+    self.load_texture_atlas();
+  }
+
+  /// WIP: Load texture atlas from assets folder.
+  #[allow(unused_variable)]  // PthreadJvmAttach for RAII
+  fn load_texture_atlas(&self) {
+    // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
+    let jvm_attach = PthreadJvmAttach::new(self.jvm);
+
+    match load_asset(self.asset_manager, "atlas.png") {
+      Ok(vec) => {
+        a_info!("Texture atlas size in bytes: {}", vec.len());
+        a_info!("PNG file signature: {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}",
+          *vec.get(0), *vec.get(1), *vec.get(2), *vec.get(3), *vec.get(4), *vec.get(5), *vec.get(6), *vec.get(7));
+      },
+      Err(s) => a_fail!("load_asset() failed: {}", s),
     }
   }
 
@@ -483,4 +520,27 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl
   let color = gl_try!(gl::get_attrib_location(program, "a_Color"));
   gl_try!(gl::use_program(program));
   (mvp_matrix, position, color)
+}
+
+// WIP: Load textures from assets folder.
+fn load_asset(manager: &asset_manager::AssetManager, filename: &str) -> Result<Vec<u8>, int32_t> {
+  let filename_c_str = filename.to_c_str();
+  let mut len: off_t = 0;
+  let mut buff: *mut u8 = ptr::mut_null();
+  let res = unsafe {
+    c_load_asset(manager, filename_c_str.as_ptr(), &mut len, &mut buff)
+  };
+  if res < 0 {
+    return Err(res);
+  }
+  let vec = unsafe {
+    vec::raw::from_buf(buff as *const u8, len as uint)
+  };
+  Ok(vec)
+}
+
+extern {
+  fn c_attach_current_thread_to_jvm(jvm: *const jni::JavaVm) -> int32_t;
+  fn c_detach_current_thread_from_jvm(jvm: *const jni::JavaVm) -> int32_t;
+  fn c_load_asset(asset_manager: *const asset_manager::AssetManager, filename: *const c_char, out_lebgth: *mut off_t, out_buff: *mut *mut c_uchar) -> int32_t;
 }
