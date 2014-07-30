@@ -131,18 +131,126 @@ pub struct Engine {
   pub texture: gl::Texture,
 }
 
-// Red, green, and blue triangle.
-static TRIANGLE_VERTICES: [f32, ..15] = [
-  // X, Y, Z,
-  // S, T (note: T axis is going from top down)
-  -0.5, -0.25, 0.0,
+static NUMBERS_PER_VERTEX: i32 = 5;
+static BYTES_PER_F32: i32 = 4;
+static STRIDE: i32 = NUMBERS_PER_VERTEX * BYTES_PER_F32;
+
+// X, Y, Z,
+// S, T (note: T axis is going from top down)
+static VERTICES: [f32, ..180] = [
+  // Front face.
+  -0.5, -0.5, 0.5,
   0.5, 1.0,
 
-  0.5, -0.25, 0.0,
+  0.5, -0.5, 0.5,
   1.0, 1.0,
 
-  0.0, 0.559016994, 0.0,
-  0.75, 0.5,
+  0.5, 0.5, 0.5,
+  1.0, 0.5,
+
+  0.5, 0.5, 0.5,
+  1.0, 0.5,
+
+  -0.5, 0.5, 0.5,
+  0.5, 0.5,
+
+  -0.5, -0.5, 0.5,
+  0.5, 1.0,
+
+  // Right face.
+  0.5, -0.5, 0.5,
+  0.5, 1.0,
+
+  0.5, -0.5, -0.5,
+  1.0, 1.0,
+
+  0.5, 0.5, -0.5,
+  1.0, 0.5,
+
+  0.5, 0.5, -0.5,
+  1.0, 0.5,
+
+  0.5, 0.5, 0.5,
+  0.5, 0.5,
+
+  0.5, -0.5, 0.5,
+  0.5, 1.0,
+
+  // Back face.
+  0.5, -0.5, -0.5,
+  0.5, 1.0,
+
+  -0.5, -0.5, -0.5,
+  1.0, 1.0,
+
+  -0.5, 0.5, -0.5,
+  1.0, 0.5,
+
+  -0.5, 0.5, -0.5,
+  1.0, 0.5,
+
+  0.5, 0.5, -0.5,
+  0.5, 0.5,
+
+  0.5, -0.5, -0.5,
+  0.5, 1.0,
+
+  // Left face.
+  -0.5, -0.5, -0.5,
+  0.5, 1.0,
+
+  -0.5, -0.5, 0.5,
+  1.0, 1.0,
+
+  -0.5, 0.5, 0.5,
+  1.0, 0.5,
+
+  -0.5, 0.5, 0.5,
+  1.0, 0.5,
+
+  -0.5, 0.5, -0.5,
+  0.5, 0.5,
+
+  -0.5, -0.5, -0.5,
+  0.5, 1.0,
+
+  // Top face.
+  -0.5, 0.5, 0.5,
+  0.0, 1.0,
+
+  0.5, 0.5, 0.5,
+  0.5, 1.0,
+
+  0.5, 0.5, -0.5,
+  0.5, 0.5,
+
+  0.5, 0.5, -0.5,
+  0.5, 0.5,
+
+  -0.5, 0.5, -0.5,
+  0.0, 0.5,
+
+  -0.5, 0.5, 0.5,
+  0.0, 1.0,
+
+  // Bottom face.
+  0.5, -0.5, 0.5,
+  0.0, 0.5,
+
+  -0.5, -0.5, 0.5,
+  0.5, 0.5,
+
+  -0.5, -0.5, -0.5,
+  0.5, 0.0,
+
+  -0.5, -0.5, -0.5,
+  0.5, 0.0,
+
+  0.5, -0.5, -0.5,
+  0.0, 0.0,
+
+  0.5, -0.5, 0.5,
+  0.0, 0.5,
 ];
 
 static VERTEX_SHADER: &'static str = "\
@@ -200,6 +308,10 @@ impl Engine {
     // Set the background clear color to gray.
     gl::clear_color(0.5, 0.5, 0.5, 1.0);
 
+    // Enable reverse face culling and depth test.
+    gl_try!(gl::enable(gl::CULL_FACE));
+    gl_try!(gl::enable(gl::DEPTH_TEST));
+
     let (mvp_matrix, position, texture_unit, texture_coord) = load_program(VERTEX_SHADER, FRAGMENT_SHADER);
     self.mvp_matrix = mvp_matrix;
     self.position = position;
@@ -213,9 +325,9 @@ impl Engine {
     gl_try!(gl::uniform_int(self.texture_unit, 0));
 
     // Set the vertex attributes for position and color.
-    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, 5 * 4, TRIANGLE_VERTICES));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, STRIDE, VERTICES));
     gl_try!(gl::enable_vertex_attrib_array(self.position));
-    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, 5 * 4, TRIANGLE_VERTICES.slice_from(3)));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, STRIDE, VERTICES.slice_from(3)));
     gl_try!(gl::enable_vertex_attrib_array(self.texture_coord));
 
     match self.egl_context {
@@ -272,7 +384,7 @@ impl Engine {
         gl_try!(gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix));
 
         // Finally, draw the triangle.
-        gl_try!(gl::draw_arrays_triangles(3));
+        gl_try!(gl::draw_arrays_triangles(VERTICES.len() as i32 / NUMBERS_PER_VERTEX));
 
         egl_context.swap_buffers();
       }
@@ -402,7 +514,7 @@ impl Engine {
 
 fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   // Initialize a static view matrix.
-  let eye = Point3::new(0.0, 0.0, 1.5);
+  let eye = Point3::new(0.0, 1.0, 2.5);
   let center = Point3::new(0.0, 0.0, -5.0);
   let up = Vector3::new(0.0, 1.0, 0.0);
   let view_matrix = Matrix4::look_at(&eye, &center, &up);

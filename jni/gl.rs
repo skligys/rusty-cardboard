@@ -41,9 +41,7 @@ pub static EXTENSIONS: Enum = 0x1F03;
 pub static SHADING_LANGUAGE_VERSION: Enum = 0x8B8C;
 
 // glEnable and glDisable enums:
-#[allow(dead_code)]
 pub static CULL_FACE: Enum = 0x0B44;
-#[allow(dead_code)]
 pub static DEPTH_TEST: Enum = 0x0B71;
 #[allow(dead_code)]
 pub static STENCIL_TEST: Enum = 0x0B90;
