@@ -484,6 +484,19 @@ pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) -> Result<(
   }
 }
 
+pub fn uniform_int(location: UnifLoc, value: Int) -> Result<(), Error> {
+  unsafe {
+    glUniform1i(location, value);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_VALUE => Err(InvalidValue),
+    INVALID_OPERATION => Err(InvalidOperation),
+    _ => a_fail!("Unknown error from glUniform1i(): {}", err),
+  }
+}
+
 // Data types:
 #[allow(dead_code)]
 static BYTE: Enum = 0x1400;
@@ -544,6 +557,119 @@ pub fn draw_arrays_triangles(count: i32) -> Result<(), Error> {
   }
 }
 
+pub type Texture = UInt;
+
+pub fn gen_texture() -> Result<Texture, Error> {
+  let mut texture: Texture = 0;
+  unsafe {
+    glGenTextures(1, &mut texture);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(texture),
+    INVALID_VALUE => Err(InvalidValue),
+    _ => a_fail!("Unknown error from glGenTextures(): {}", err),
+  }
+}
+
+static TEXTURE_2D: Enum = 0x0DE1;
+
+pub fn bind_texture_2d(texture: Texture) -> Result<(), Error> {
+  unsafe {
+    glBindTexture(TEXTURE_2D, texture);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_OPERATION => Err(InvalidOperation),
+    _ => a_fail!("Unknown error from glBindTexture(): {}", err),
+  }
+}
+
+// Texture parameter names:
+pub static TEXTURE_MAG_FILTER: Enum = 0x2800;
+pub static TEXTURE_MIN_FILTER: Enum = 0x2801;
+pub static TEXTURE_WRAP_S: Enum = 0x2802;
+pub static TEXTURE_WRAP_T: Enum = 0x2803;
+
+// Texture parameter values for TEXTURE_MAG_FILTER:
+#[allow(dead_code)]
+pub static NEAREST: Int = 0x2600;
+pub static LINEAR: Int = 0x2601;
+
+// Texture parameter values for TEXTURE_MIN_FILTER:
+#[allow(dead_code)]
+pub static NEAREST_MIPMAP_NEAREST: Int = 0x2700;
+#[allow(dead_code)]
+pub static LINEAR_MIPMAP_NEAREST: Int = 0x2701;
+#[allow(dead_code)]
+pub static NEAREST_MIPMAP_LINEAR: Int = 0x2702;
+pub static LINEAR_MIPMAP_LINEAR: Int = 0x2703;
+
+// Texture parameter values for TEXTURE_WRAP_S, TEXTURE_WRAP_T:
+#[allow(dead_code)]
+pub static REPEAT: Int = 0x2901;
+pub static CLAMP_TO_EDGE: Int = 0x812F;
+#[allow(dead_code)]
+pub static MIRRORED_REPEAT: Int = 0x8370;
+
+pub fn texture_2d_param(param_name: Enum, param_value: Int) -> Result<(), Error> {
+  unsafe {
+    glTexParameteri(TEXTURE_2D, param_name, param_value);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_ENUM => Err(InvalidEnum),
+    _ => a_fail!("Unknown error from glTexParameteri(): {}", err),
+  }
+}
+
+static RGBA: Enum = 0x1908;
+
+pub fn texture_2d_image_rgba(width: Int, height: Int, data: &[u8]) -> Result<(), Error> {
+  unsafe {
+    glTexImage2D(TEXTURE_2D, 0, RGBA as i32, width, height, 0, RGBA, UNSIGNED_BYTE, data.as_ptr() as *const Void);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_VALUE => Err(InvalidValue),
+    INVALID_OPERATION => Err(InvalidOperation),
+    _ => a_fail!("Unknown error from glTexImage2D(): {}", err),
+  }
+}
+
+pub fn generate_mipmap_2d() -> Result<(), Error> {
+  unsafe {
+    glGenerateMipmap(TEXTURE_2D);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_OPERATION => Err(InvalidOperation),
+    _ => a_fail!("Unknown error from glGenerateMipmap(): {}", err),
+  }
+}
+
+// Texture units:
+pub static TEXTURE0: Enum = 0x84C0;
+
+pub fn active_texture(texture_unit: Enum) -> Result<(), Error> {
+  unsafe {
+    glActiveTexture(texture_unit);
+  }
+  let err = unsafe { glGetError() };
+  match err {
+    NO_ERROR => Ok(()),
+    INVALID_ENUM => Err(InvalidEnum),
+    _ => a_fail!("Unknown error from glActiveTexture(): {}", err),
+  }
+}
+
 extern {
   fn glGetString(name: Enum) -> *const UByte;
   fn glGetError() -> Enum;
@@ -569,7 +695,14 @@ extern {
   fn glUseProgram(program: UInt);
   fn glViewport(x: Int, y: Int, width: SizeI, height: SizeI);
   fn glUniformMatrix4fv(location: Int, count: SizeI, transpose: Boolean, value: *const Float);
+  fn glUniform1i(location: Int, value: Int);
   fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
   fn glEnableVertexAttribArray(index: UInt);
   fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
+  fn glGenTextures(count: SizeI, textures: *mut UInt);
+  fn glBindTexture(target: Enum, texture: UInt);
+  fn glTexParameteri(target: Enum, param_name: Enum, param_value: Int);
+  fn glTexImage2D(target: Enum, level: Int, internal_format: Int, width: SizeI, height: SizeI, border: Int, format: Enum, data_type: Enum, data: *const Void);
+  fn glGenerateMipmap(target: Enum);
+  fn glActiveTexture(texture_unit: Enum);
 }

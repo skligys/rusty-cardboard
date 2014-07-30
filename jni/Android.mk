@@ -19,6 +19,7 @@ LOCAL_SRC_FILES :=\
   ../external/libpng-android/jni/pngwrite.c \
   ../external/libpng-android/jni/pngwtran.c \
   ../external/libpng-android/jni/pngwutil.c
+LOCAL_EXPORT_LDLIBS := -lz
 include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
@@ -45,7 +46,7 @@ include $(CLEAR_VARS)
 # Main
 LOCAL_MODULE := native-activity
 LOCAL_SRC_FILES := main.c
-LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv2 -lz
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv2
 LOCAL_STATIC_LIBRARIES := rust-prebuilt android_native_app_glue unwind pngshim png
 include $(BUILD_SHARED_LIBRARY)
 

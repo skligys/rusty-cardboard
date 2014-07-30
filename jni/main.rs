@@ -185,8 +185,10 @@ pub extern fn rust_android_main(app_ptr: *mut app::AndroidApp) {
     },
     mvp_matrix: Default::default(),
     position: Default::default(),
-    color: Default::default(),
+    texture_unit: Default::default(),
+    texture_coord: Default::default(),
     view_projection_matrix: Matrix4::identity(),
+    texture: Default::default(),
   };
 
   // Notify the system about our custom data and callbacks.

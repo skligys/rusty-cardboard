@@ -123,40 +123,44 @@ pub struct Engine {
   // GL bound variables.
   pub mvp_matrix: gl::UnifLoc,
   pub position: gl::AttribLoc,
-  pub color: gl::AttribLoc,
-  // GL matrix
+  pub texture_unit: gl::UnifLoc,
+  pub texture_coord: gl::AttribLoc,
+  /// GL matrix
   pub view_projection_matrix: Matrix4<f32>,
+  /// Texture atlas.
+  pub texture: gl::Texture,
 }
 
 // Red, green, and blue triangle.
-static TRIANGLE_VERTICES: [f32, ..21] = [
+static TRIANGLE_VERTICES: [f32, ..15] = [
   // X, Y, Z,
-  // R, G, B, A
+  // S, T (note: T axis is going from top down)
   -0.5, -0.25, 0.0,
-  1.0, 0.0, 0.0, 1.0,
+  0.5, 1.0,
 
   0.5, -0.25, 0.0,
-  0.0, 0.0, 1.0, 1.0,
+  1.0, 1.0,
 
   0.0, 0.559016994, 0.0,
-  0.0, 1.0, 0.0, 1.0,
+  0.75, 0.5,
 ];
 
 static VERTEX_SHADER: &'static str = "\
   uniform mat4 u_MVPMatrix;\n\
   attribute vec4 a_Position;\n\
-  attribute vec4 a_Color;\n\
-  varying vec4 v_Color;\n\
+  attribute vec2 a_TextureCoord;\n\
+  varying vec2 v_TextureCoord;\n\
   void main() {\n\
-    v_Color = a_Color;\n\
+    v_TextureCoord = a_TextureCoord;\n\
     gl_Position = u_MVPMatrix * a_Position;
   }\n";
 
 static FRAGMENT_SHADER: &'static str = "\
   precision mediump float;\n\
-  varying vec4 v_Color;\n\
+  uniform sampler2D u_TextureUnit;\n\
+  varying vec2 v_TextureCoord;\n\
   void main() {\n\
-    gl_FragColor = v_Color;\n\
+    gl_FragColor = texture2D(u_TextureUnit, v_TextureCoord);\n\
   }\n";
 
   /// RAII for attachment from current pthread to JVM.  Auto-detaches when it goes out of scope.
@@ -196,16 +200,23 @@ impl Engine {
     // Set the background clear color to gray.
     gl::clear_color(0.5, 0.5, 0.5, 1.0);
 
-    let (mvp_matrix, position, color) = load_program(VERTEX_SHADER, FRAGMENT_SHADER);
+    let (mvp_matrix, position, texture_unit, texture_coord) = load_program(VERTEX_SHADER, FRAGMENT_SHADER);
     self.mvp_matrix = mvp_matrix;
     self.position = position;
-    self.color = color;
+    self.texture_unit = texture_unit;
+    self.texture_coord = texture_coord;
+
+    // Set up textures.
+    self.texture = self.load_texture_atlas();
+    gl_try!(gl::active_texture(gl::TEXTURE0));
+    gl_try!(gl::bind_texture_2d(self.texture));
+    gl_try!(gl::uniform_int(self.texture_unit, 0));
 
     // Set the vertex attributes for position and color.
-    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, 7 * 4, TRIANGLE_VERTICES));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, 5 * 4, TRIANGLE_VERTICES));
     gl_try!(gl::enable_vertex_attrib_array(self.position));
-    gl_try!(gl::vertex_attrib_pointer_f32(self.color, 4, 7 * 4, TRIANGLE_VERTICES.slice_from(3)));
-    gl_try!(gl::enable_vertex_attrib_array(self.color));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, 5 * 4, TRIANGLE_VERTICES.slice_from(3)));
+    gl_try!(gl::enable_vertex_attrib_array(self.texture_coord));
 
     match self.egl_context {
       Some(ref ec) => {
@@ -214,30 +225,37 @@ impl Engine {
       },
       None => a_fail!("self.egl_context should be present"),
     }
-
-    self.load_texture_atlas();
   }
 
   /// WIP: Load texture atlas from assets folder.
   #[allow(unused_variable)]  // PthreadJvmAttach for RAII
-  fn load_texture_atlas(&self) {
-    // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
-    let jvm_attach = PthreadJvmAttach::new(self.jvm);
+  fn load_texture_atlas(&self) -> gl::Texture {
+    let vec = {
+      // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
+      let jvm_attach = PthreadJvmAttach::new(self.jvm);
 
-    let vec = load_asset(self.asset_manager, "atlas.png")
-      .unwrap_or_else(|i| a_fail!("load_asset() failed: {}", i));
+      load_asset(self.asset_manager, "atlas.png")
+        .unwrap_or_else(|i| a_fail!("load_asset() failed: {}", i))
+    };
 
-    a_info!("Texture atlas size in bytes: {}", vec.len());
-    a_info!("PNG file signature: {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}, {:02X}",
-      *vec.get(0), *vec.get(1), *vec.get(2), *vec.get(3), *vec.get(4), *vec.get(5), *vec.get(6), *vec.get(7));
+    let image = load_png_from_memory(vec.as_slice())
+      .unwrap_or_else(|s| a_fail!("load_png_from_memory() failed: {}", s));
 
-    match load_png_from_memory(vec.as_slice()) {
-      Ok(im) => {
-        a_info!("Loaded PNG texture: {}x{}, {}", im.width, im.height, im.color_type);
-        a_info!("  pixel vector length: {}", im.pixels.len());
-      },
-      Err(s) => a_fail!("load_png_from_memory() failed: {}", s),
+    if image.color_type != png::RGBA8 {
+      a_fail!("Only RGBA8 image format supported, was: {}", image.color_type);
     }
+
+    let texture = gl_try!(gl::gen_texture());
+    gl_try!(gl::bind_texture_2d(texture));
+    gl_try!(gl::texture_2d_param(gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR));
+    gl_try!(gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR));
+    gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE));
+    gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE));
+    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, image.pixels.as_slice()));
+    gl_try!(gl::generate_mipmap_2d());
+    gl_try!(gl::bind_texture_2d(0));
+
+    texture
   }
 
   /// Draw a frame.
@@ -508,14 +526,15 @@ fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
   shader
 }
 
-fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl::UnifLoc, gl::AttribLoc, gl::AttribLoc) {
+fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
+  (gl::UnifLoc, gl::AttribLoc, gl::UnifLoc, gl::AttribLoc) {
   let vertex_shader = compile_shader(vertex_shader_string, gl::VERTEX_SHADER);
   let fragment_shader = compile_shader(fragment_shader_string, gl::FRAGMENT_SHADER);
   let program = gl_try!(gl::create_program());
   gl_try!(gl::attach_shader(program, vertex_shader));
   gl_try!(gl::attach_shader(program, fragment_shader));
   gl_try!(gl::bind_attrib_location(program, 0, "a_Position"));
-  gl_try!(gl::bind_attrib_location(program, 1, "a_Color"));
+  gl_try!(gl::bind_attrib_location(program, 1, "a_TextureCoord"));
   gl_try!(gl::link_program(program));
   let status = gl_try!(gl::get_link_status(program));
   if !status {
@@ -525,9 +544,10 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) -> (gl
   }
   let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
   let position = gl_try!(gl::get_attrib_location(program, "a_Position"));
-  let color = gl_try!(gl::get_attrib_location(program, "a_Color"));
+  let texture_unit = gl_try!(gl::get_uniform_location(program, "u_TextureUnit"));
+  let texture_coord = gl_try!(gl::get_attrib_location(program, "a_TextureCoord"));
   gl_try!(gl::use_program(program));
-  (mvp_matrix, position, color)
+  (mvp_matrix, position, texture_unit, texture_coord)
 }
 
 // WIP: Load textures from assets folder.
