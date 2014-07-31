@@ -1,7 +1,7 @@
 extern crate cgmath;
 extern crate png;
 
-use libc::{c_float, c_void, int32_t, malloc, size_t};
+use libc::{c_float, c_void, malloc, size_t};
 use std::default::Default;
 use std::mem;
 use std::ptr;
@@ -277,22 +277,17 @@ static FRAGMENT_SHADER: &'static str = "\
 
   impl PthreadJvmAttach {
     fn new(jvm: &'static jni::JavaVm) -> PthreadJvmAttach {
-      let res = unsafe {
-        c_attach_current_thread_to_jvm(jvm)
-      };
+      let res = jni::attach_current_thread_to_jvm(jvm);
       if res < 0 {
         a_fail!("Failed to attach pthread to JVM, status: {}", res);
       }
-
       PthreadJvmAttach { jvm : jvm }
     }
   }
 
   impl Drop for PthreadJvmAttach {
     fn drop(&mut self) {
-      let res = unsafe {
-        c_detach_current_thread_from_jvm(self.jvm)
-      };
+      let res = jni::detach_current_thread_from_jvm(self.jvm);
       if res < 0 {
         a_fail!("Failed to detach pthread to JVM, status: {}", res);
       }
@@ -658,9 +653,4 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
   let texture_coord = gl_try!(gl::get_attrib_location(program, "a_TextureCoord"));
   gl_try!(gl::use_program(program));
   (mvp_matrix, position, texture_unit, texture_coord)
-}
-
-extern {
-  fn c_attach_current_thread_to_jvm(jvm: *const jni::JavaVm) -> int32_t;
-  fn c_detach_current_thread_from_jvm(jvm: *const jni::JavaVm) -> int32_t;
 }

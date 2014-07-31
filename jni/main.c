@@ -1,19 +1,7 @@
 #include <android_native_app_glue.h>
-#include <inttypes.h>
-#include <jni.h>
 
 void c_log_string(int priority, const char *message) {
   __android_log_write(priority, "native-activity", message);
-}
-
-// TODO: Port these 3 methods to Rust.
-int32_t c_attach_current_thread_to_jvm(JavaVM *jvm) {
-  JNIEnv *env = NULL;
-  return (*jvm)->AttachCurrentThread(jvm, &env, NULL);
-}
-
-int32_t c_detach_current_thread_from_jvm(JavaVM *jvm) {
-  return (*jvm)->DetachCurrentThread(jvm);
 }
 
 /* Functions implemented in Rust. */
