@@ -1,11 +1,10 @@
 extern crate cgmath;
 extern crate png;
 
-use libc::{c_char, c_float, c_uchar, c_void, int32_t, malloc, off_t, size_t};
+use libc::{c_float, c_void, int32_t, malloc, size_t};
 use std::default::Default;
 use std::mem;
 use std::ptr;
-use std::vec;
 
 use self::cgmath::matrix::Matrix4;
 use self::cgmath::point::Point3;
@@ -339,15 +338,14 @@ impl Engine {
     }
   }
 
-  /// WIP: Load texture atlas from assets folder.
-  #[allow(unused_variable)]  // PthreadJvmAttach for RAII
+  /// Load texture atlas from assets folder.
   fn load_texture_atlas(&self) -> gl::Texture {
     let vec = {
       // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
-      let jvm_attach = PthreadJvmAttach::new(self.jvm);
+      let _jvm_attach = PthreadJvmAttach::new(self.jvm);
 
-      load_asset(self.asset_manager, "atlas.png")
-        .unwrap_or_else(|i| a_fail!("load_asset() failed: {}", i))
+      asset_manager::load_asset(self.asset_manager, "atlas.png")
+        .unwrap_or_else(|i| a_fail!("asset_manager::load_asset() failed: {}", i))
     };
 
     let image = load_png_from_memory(vec.as_slice())
@@ -662,25 +660,7 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
   (mvp_matrix, position, texture_unit, texture_coord)
 }
 
-// WIP: Load textures from assets folder.
-fn load_asset(manager: &asset_manager::AssetManager, filename: &str) -> Result<Vec<u8>, int32_t> {
-  let filename_c_str = filename.to_c_str();
-  let mut len: off_t = 0;
-  let mut buff: *mut u8 = ptr::mut_null();
-  let res = unsafe {
-    c_load_asset(manager, filename_c_str.as_ptr(), &mut len, &mut buff)
-  };
-  if res < 0 {
-    return Err(res);
-  }
-  let vec = unsafe {
-    vec::raw::from_buf(buff as *const u8, len as uint)
-  };
-  Ok(vec)
-}
-
 extern {
   fn c_attach_current_thread_to_jvm(jvm: *const jni::JavaVm) -> int32_t;
   fn c_detach_current_thread_from_jvm(jvm: *const jni::JavaVm) -> int32_t;
-  fn c_load_asset(asset_manager: *const asset_manager::AssetManager, filename: *const c_char, out_lebgth: *mut off_t, out_buff: *mut *mut c_uchar) -> int32_t;
 }
