@@ -1,3 +1,9 @@
 [submodule "external/cgmath-rs"]
 	path = external/cgmath-rs
-	url = https://github.com/bjz/cgmath-rs.git
+	url = https://github.com/skligys/cgmath-rs.git
+[submodule "external/libpng-android"]
+  path = external/libpng-android
+  url = https://github.com/julienr/libpng-android.git
+[submodule "external/rust-png"]
+  path = external/rust-png
+  url = https://github.com/servo/rust-png.git
