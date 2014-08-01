@@ -2,6 +2,7 @@ extern crate cgmath;
 extern crate png;
 
 use libc::{c_float, c_void, malloc, size_t};
+use std::collections::HashSet;
 use std::default::Default;
 use std::mem;
 use std::ptr;
@@ -53,14 +54,33 @@ macro_rules! gl_try(
   )
 )
 
-// Saved state data.  Compatible with C.
+#[deriving(Hash, PartialEq, Eq, Show, Clone)]
+struct Block {
+  center: Point3<i32>,
+}
+
+impl Block {
+  #[inline]
+  pub fn new(x: i32, y: i32, z: i32) -> Block {
+    Block {
+     center: Point3::new(x, y, z),
+    }
+  }
+}
+
+// Saved state data.
 struct SavedState {
   angle: c_float,  // in degrees.
+  /// All blocks in the world.
+  blocks: HashSet<Block>
 }
 
 impl Default for SavedState {
   fn default() -> SavedState {
-    SavedState { angle: 0.0 }
+    SavedState {
+      angle: 0.0,
+      blocks: HashSet::new(),
+    }
   }
 }
 
@@ -611,11 +631,42 @@ pub fn restore_saved_state(state: *mut c_void, state_size: size_t) -> SavedState
   if state_size == mem::size_of::<SavedState>() as size_t {
     // Compatible size, can restore.
     let saved_state: &SavedState = unsafe { &*(state as *const SavedState) };
-    SavedState { angle: saved_state.angle }
+    SavedState {
+      angle: saved_state.angle,
+      blocks: saved_state.blocks.clone(),
+    }
   } else {
     // Incompatible size, don't even try to restore.
-    Default::default()
+    SavedState {
+      angle: Default::default(),
+      blocks: create_world(),
+    }
   }
+}
+
+/// Create a test world: 15x15 floor, a few extra landscape blocks on top.
+fn create_world() -> HashSet<Block> {
+  let mut blocks = HashSet::with_capacity(15 * 15 + 7);
+
+  // Flat 15x15 floor.
+  for x in range(-7, 7) {
+    for z in range(-7, 7) {
+      blocks.insert(Block::new(x, 0, z));
+    }
+  }
+
+  // A few pilars in the initial field of view.
+  blocks.insert(Block::new(0, 1, -2));
+  blocks.insert(Block::new(0, 2, -2));
+  blocks.insert(Block::new(0, 3, -2));
+
+  blocks.insert(Block::new(2, 1, -5));
+  blocks.insert(Block::new(2, 2, -5));
+
+  blocks.insert(Block::new(-3, 1, -3));
+  blocks.insert(Block::new(-3, 2, -3));
+
+  blocks
 }
 
 fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
