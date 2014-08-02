@@ -299,8 +299,8 @@ impl Engine {
   pub fn init(&mut self, egl_context: Box<EglContext>) {
     self.egl_context = Some(egl_context);
 
-    // Set the background clear color to gray.
-    gl::clear_color(0.5, 0.5, 0.5, 1.0);
+    // Set the background clear color to sky blue.
+    gl::clear_color(0.5, 0.69, 1.0, 1.0);
 
     // Enable reverse face culling and depth test.
     gl_try!(gl::enable(gl::CULL_FACE));
