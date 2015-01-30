@@ -25,7 +25,7 @@ if [[ -d "$ANDROID_NDK_STANDALONE_HOME" ]]; then
     rm -rf "$ANDROID_NDK_STANDALONE_HOME"
   fi
 fi
-$ANDROID_NDK_HOME/build/tools/make-standalone-toolchain.sh --toolchain=arm-linux-androideabi-4.8 --platform=android-19 --install-dir=$ANDROID_NDK_STANDALONE_HOME --ndk-dir=$ANDROID_NDK_HOME
+$ANDROID_NDK_HOME/build/tools/make-standalone-toolchain.sh --toolchain=arm-linux-androideabi-4.9 --platform=android-21 --install-dir=$ANDROID_NDK_STANDALONE_HOME --ndk-dir=$ANDROID_NDK_HOME
 
 $ANDROID_SDK_HOME/tools/android list target
 $ANDROID_SDK_HOME/tools/android update project --target 1 --name RustyCardboard --path . --subprojects
