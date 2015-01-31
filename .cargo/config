@@ -1,0 +1,2 @@
+[target.arm-linux-androideabi]
+linker = "external/apk-builder/apk-builder/target/release/apk-builder"

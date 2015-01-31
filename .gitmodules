@@ -1,0 +1,3 @@
+[submodule "external/apk-builder"]
+	path = external/apk-builder
+	url = https://github.com/skligys/android-rs-glue
