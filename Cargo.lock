@@ -1,0 +1,131 @@
+[root]
+name = "RustyCardboard"
+version = "0.0.1"
+dependencies = [
+ "android_glue 0.0.1 (git+https://github.com/skligys/android-rs-glue)",
+ "gl_common 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_generator 0.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glutin 0.0.4-pre (git+https://github.com/skligys/glutin)",
+ "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "android_glue"
+version = "0.0.1"
+source = "git+https://github.com/skligys/android-rs-glue#629dfa390e45ba9fd3faf8ec24bb87577d649112"
+dependencies = [
+ "compile_msg 0.1.3 (git+https://github.com/huonw/compile_msg)",
+]
+
+[[package]]
+name = "bitflags"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "cocoa"
+version = "0.1.1"
+source = "git+https://github.com/servo/rust-cocoa#1b7134a7c0469f6645dd543ad7b486b104067c57"
+dependencies = [
+ "bitflags 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "compile_msg"
+version = "0.1.3"
+source = "git+https://github.com/huonw/compile_msg#b19da50cacf5b11bbc065da6b449f6b4fe7c019a"
+
+[[package]]
+name = "core_foundation"
+version = "0.1.0"
+source = "git+https://github.com/servo/rust-core-foundation#eb754c70a082d74fb28aef316f283a0c6fb808f0"
+
+[[package]]
+name = "core_graphics"
+version = "0.1.0"
+source = "git+https://github.com/servo/rust-core-graphics#9434e2bda65d259f825104170b5fa6cc6dbaf5a9"
+dependencies = [
+ "core_foundation 0.1.0 (git+https://github.com/servo/rust-core-foundation)",
+]
+
+[[package]]
+name = "gdi32-sys"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "winapi 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "gl_common"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "gl_generator"
+version = "0.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "gl_common 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xml-rs 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "glutin"
+version = "0.0.4-pre"
+source = "git+https://github.com/skligys/glutin#e8b02aec25b48b4fd661009e059b4da30f73acfc"
+dependencies = [
+ "android_glue 0.0.1 (git+https://github.com/skligys/android-rs-glue)",
+ "cocoa 0.1.1 (git+https://github.com/servo/rust-cocoa)",
+ "core_foundation 0.1.0 (git+https://github.com/servo/rust-core-foundation)",
+ "core_graphics 0.1.0 (git+https://github.com/servo/rust-core-graphics)",
+ "gdi32-sys 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_common 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_generator 0.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel32-sys 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "user32-sys 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "kernel32-sys"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "winapi 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "khronos_api"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "log"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "user32-sys"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "winapi 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "winapi"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "xml-rs"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "bitflags 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
