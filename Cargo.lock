@@ -4,15 +4,15 @@ version = "0.0.1"
 dependencies = [
  "android_glue 0.0.1 (git+https://github.com/skligys/android-rs-glue)",
  "gl_common 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "gl_generator 0.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
- "glutin 0.0.4-pre (git+https://github.com/skligys/glutin)",
+ "gl_generator 0.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glutin 0.0.4 (git+https://github.com/skligys/glutin)",
  "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "android_glue"
 version = "0.0.1"
-source = "git+https://github.com/skligys/android-rs-glue#25daf337cd57794f69c4094b5cb0cc4b6fce50ef"
+source = "git+https://github.com/skligys/android-rs-glue#e133b3f5aa12bf2cba1191cac1af83a873d67e9d"
 
 [[package]]
 name = "bitflags"
@@ -22,7 +22,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "cocoa"
 version = "0.1.1"
-source = "git+https://github.com/servo/rust-cocoa#fdc033e2edf9e6979d6cd15da1a904b81a448b57"
+source = "git+https://github.com/servo/rust-cocoa#7768a8f6af73d132b68e5cad6a0d81ec54102abe"
 dependencies = [
  "bitflags 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "core_foundation"
 version = "0.1.0"
-source = "git+https://github.com/servo/rust-core-foundation#cc36380f9e7694395a1923a1b220222237cb66bc"
+source = "git+https://github.com/servo/rust-core-foundation#c577bd64b0301fe926cf7b757b9852a1ce1d521d"
 dependencies = [
  "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -49,7 +49,7 @@ name = "gdi32-sys"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "winapi 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -62,18 +62,18 @@ dependencies = [
 
 [[package]]
 name = "gl_generator"
-version = "0.0.17"
+version = "0.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "glutin"
-version = "0.0.4-pre"
-source = "git+https://github.com/skligys/glutin#aadfad27ec8258dd2400c98480e8ae3ebc990dd1"
+version = "0.0.4"
+source = "git+https://github.com/skligys/glutin#7091a96ac15c0948f7cd1e73bfbf23908b4070b4"
 dependencies = [
  "android_glue 0.0.1 (git+https://github.com/skligys/android-rs-glue)",
  "cocoa 0.1.1 (git+https://github.com/servo/rust-cocoa)",
@@ -81,20 +81,20 @@ dependencies = [
  "core_graphics 0.1.0 (git+https://github.com/servo/rust-core-graphics)",
  "gdi32-sys 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "gl_common 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "gl_generator 0.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
- "kernel32-sys 0.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_generator 0.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel32-sys 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "khronos_api 0.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "user32-sys 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "user32-sys 0.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "kernel32-sys"
-version = "0.0.7"
+version = "0.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "winapi 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -109,20 +109,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "log"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "user32-sys"
-version = "0.0.9"
+version = "0.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "winapi 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "winapi"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
