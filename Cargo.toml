@@ -21,3 +21,6 @@ git = "https://github.com/skligys/android-rs-glue"
 [dependencies.glutin]
 git = "https://github.com/skligys/glutin"
 features = ["window"]
+
+[dependencies]
+libc = "*"
