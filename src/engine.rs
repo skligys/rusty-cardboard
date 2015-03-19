@@ -2,21 +2,15 @@ extern crate android_glue;
 extern crate cgmath;
 extern crate png;
 
-use libc::{c_float, c_void, malloc, size_t};
 use std::default::Default;
-use std::mem;
 use std::ptr;
 
+use android_glue::AssetError;
 use cgmath::{Matrix4, Point3, Vector3};
 
-use asset_manager;
 use egl;
 use egl::{Context, Display, Surface};
 use gl;
-use input;
-use input::EventType;
-use jni;
-use sensor;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
@@ -52,7 +46,7 @@ macro_rules! gl_try(
 
 // Saved state data.  Compatible with C.
 struct SavedState {
-  angle: c_float,  // in degrees.
+  angle: f32,  // in degrees.
 }
 
 impl Default for SavedState {
@@ -109,10 +103,10 @@ impl Drop for EglContext {
 // Shared state for our app.
 // TODO: Find a way not to declare all fields public.
 pub struct Engine {
-  pub jvm: &'static mut android_glue::ffi::JavaVM,
-  pub asset_manager: &'static mut android_glue::ffi::AAssetManager,
-  pub accelerometer_sensor: Option<&'static android_glue::ffi::ASensor>,
-  pub sensor_event_queue: &'static mut android_glue::ffi::ASensorEventQueue,
+//  pub jvm: &'static mut android_glue::ffi::JavaVM,
+//  pub asset_manager: &'static mut android_glue::ffi::AAssetManager,
+//  pub accelerometer_sensor: Option<&'static android_glue::ffi::ASensor>,
+//  pub sensor_event_queue: &'static mut android_glue::ffi::ASensorEventQueue,
   pub animating: bool,
   pub egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
@@ -267,31 +261,6 @@ const FRAGMENT_SHADER: &'static str = "\
     gl_FragColor = texture2D(u_TextureUnit, v_TextureCoord);\n\
   }\n";
 
-  /// RAII for attachment from current pthread to JVM.  Auto-detaches when it goes out of scope.
-  struct PthreadJvmAttach<'a> {
-    jvm: &'a mut android_glue::ffi::JavaVM,
-  }
-
-  impl <'a> PthreadJvmAttach<'a> {
-    fn new(jvm: &'a mut android_glue::ffi::JavaVM) -> PthreadJvmAttach<'a> {
-      let res = jni::attach_current_thread_to_jvm(jvm);
-      if res < 0 {
-        a_panic!("Failed to attach pthread to JVM, status: {}", res);
-      }
-      PthreadJvmAttach { jvm : jvm }
-    }
-  }
-
-  #[unsafe_destructor]
-  impl <'a> Drop for PthreadJvmAttach<'a> {
-    fn drop(&mut self) {
-      let res = jni::detach_current_thread_from_jvm(self.jvm);
-      if res < 0 {
-        a_panic!("Failed to detach pthread to JVM, status: {}", res);
-      }
-    }
-  }
-
 impl Engine {
   /// Initialize the engine.
   pub fn init(&mut self, egl_context: Box<EglContext>) {
@@ -333,12 +302,15 @@ impl Engine {
 
   /// Load texture atlas from assets folder.
   fn load_texture_atlas(&mut self) -> gl::Texture {
-    let vec = {
-      // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
-      let _jvm_attach = PthreadJvmAttach::new(self.jvm);
-
-      asset_manager::load_asset(self.asset_manager, "atlas.png")
-        .unwrap_or_else(|i| a_panic!("asset_manager::load_asset() failed: {}", i))
+    let vec = match android_glue::load_asset("atlas.png") {
+      Ok(v) => v,
+      Err(e) => {
+        let mess = match e {
+          AssetError::AssetMissing => "asset missing",
+          AssetError::EmptyBuffer => "couldn't read asset",
+        };
+        a_panic!("Loading atlas.png failed: {}", mess)
+      },
     };
 
     let image = png::load_png_from_memory(&vec)
@@ -372,6 +344,10 @@ impl Engine {
 
   /// Draw a frame.
   pub fn draw(&mut self) {
+    if !self.animating {
+      return;
+    }
+
     match self.egl_context {
       None => return,  // No display.
       Some(ref egl_context) => {
@@ -413,86 +389,14 @@ impl Engine {
     a_info!("Renderer terminated");
   }
 
-  /// Handle touch and key input.  Return true if you handled event, false for any default handling.
-  pub fn handle_input(&mut self, event: &android_glue::ffi::AInputEvent) -> bool {
-    match input::get_event_type(event) {
-      EventType::Key => false,
-      EventType::Motion => {
-        let x = input::get_motion_event_x(event, 0);
-        let y = input::get_motion_event_y(event, 0);
-        a_info!("Touch at ({}, {})", x, y);
-        return true;
-      },
-    }
-  }
-
-  /// Loop and handle all sensor events if any.
-  pub fn handle_sensor_events(&mut self) {
-    loop {
-      match sensor::get_event(self.sensor_event_queue) {
-        Ok(ev) => {
-          self.handle_sensor(&ev);
-          ()
-        },
-        Err(_) => return,
-      }
-    }
-  }
-
-  /// Handle sensor input.
-  fn handle_sensor(&self, _event: &android_glue::ffi::ASensorEvent) {
-    // Do nothing.
-  }
-
   /// Called when window gains input focus.
   pub fn gained_focus(&mut self) {
     self.animating = true;
-
-    // When our app gains focus, we start monitoring the accelerometer.
-    match self.accelerometer_sensor {
-      None => (),
-      Some(ref sensor) => {
-        enable_sensor(self.sensor_event_queue, *sensor);
-        // Request 60 events per second, in micros.
-        sensor_event_rate(self.sensor_event_queue, *sensor, 60);
-      }
-    }
-  }
-
-  /// Active when initialized and has focus.
-  pub fn is_active(&self) -> bool {
-    self.animating
   }
 
   /// Called when window loses input focus.
   pub fn lost_focus(&mut self) {
-    // When our app loses focus, we stop monitoring the accelerometer.
-    // This is to avoid consuming battery while not being used.
-    match self.accelerometer_sensor {
-      None => (),
-      Some(ref sensor) => {
-        disable_sensor(self.sensor_event_queue, *sensor);
-      }
-    };
-    // Also stop animating.
     self.animating = false;
-    self.draw();
-  }
-
-  /// Called to save application state.  malloc some memory, copy your data into it and return
-  /// together with its size.  Native activity code will free it for you later.
-  pub fn save_state(&self) -> (size_t, *mut c_void) {
-    let size = mem::size_of::<SavedState>() as size_t;
-    let result = unsafe {
-      let p = malloc(size);
-      assert!(!p.is_null());
-      p
-    };
-
-    let saved_state: &mut SavedState = unsafe { &mut *(result as *mut SavedState) };
-    saved_state.angle = self.state.angle;
-
-    (size, result as *mut c_void)
   }
 }
 
@@ -525,33 +429,6 @@ fn from_angle_y(degrees: f32) -> Matrix4<f32> {
                   0.0, 1.0, 0.0, 0.0,
                     s, 0.0,   c, 0.0,
                   0.0, 0.0, 0.0, 1.0)
-}
-
-fn enable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
-  sensor: &android_glue::ffi::ASensor) {
-
-  match sensor::enable_sensor(event_queue, sensor) {
-    Ok(_) => (),
-    Err(e) => a_panic!("enable_sensor failed: {}", e),
-  };
-}
-
-fn sensor_event_rate(event_queue: &mut android_glue::ffi::ASensorEventQueue,
-  sensor: &android_glue::ffi::ASensor, events_per_second: i32) {
-
-  match sensor::set_event_rate(event_queue, sensor, 1000 * 1000 / events_per_second) {
-    Ok(_) => (),
-    Err(e) => a_panic!("set_event_rate failed: {}", e),
-  };
-}
-
-fn disable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
-  sensor: &android_glue::ffi::ASensor) {
-
-  match sensor::disable_sensor(event_queue, sensor) {
-    Ok(_) => (),
-    Err(e) => a_panic!("disable_sensor failed: {}", e),
-  };
 }
 
 pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglContext {
@@ -604,17 +481,6 @@ pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglC
     context: context,
     width: w,
     height: h,
-  }
-}
-
-pub fn restore_saved_state(state: *mut c_void, state_size: size_t) -> SavedState {
-  if state_size == mem::size_of::<SavedState>() as size_t {
-    // Compatible size, can restore.
-    let saved_state: &SavedState = unsafe { &*(state as *const SavedState) };
-    SavedState { angle: saved_state.angle }
-  } else {
-    // Incompatible size, don't even try to restore.
-    Default::default()
   }
 }
 
