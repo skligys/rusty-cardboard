@@ -23,6 +23,7 @@ This is an attempt to fix that by rewriting everything in Rust.  The goal is
 http://web.archive.org/web/20141225095654/https://github.com/rust-lang/rust/wiki/Doc-building-for-android
 * Install `cargo`, a recent nightly build will do.
 * Check out the project and update submodules:
+
     ```sh
     $ git clone https://github.com/skligys/rusty-cardboard.git
     $ cd rusty-cardboard
@@ -32,15 +33,20 @@ http://web.archive.org/web/20141225095654/https://github.com/rust-lang/rust/wiki
 ### Building
 
 * Build `apk-builder`:
+
     ```sh
     $ cd external/apk-builder/apk-builder
     $ cargo build --release --features "assets_hack"
     ```
+
 * Build the project:
+
     ```sh
     $ ANDROID_HOME=<sdk dir> NDK_HOME=<ndk dir> NDK_STANDALONE=<standalone ndk dir> PATH=$NDK_STANDALONE/bin:$PATH cargo build --target=arm-linux-androideabi
     ```
+
 * Install on your phone or emulator:
+
     ```sh
     $ mv target/arm-linux-androideabi/debug/RustyCardboard target/arm-linux-androideabi/debug/RustyCardboard.apk
     $ adb install -r target/arm-linux-androideabi/debug/RustyCardboard.apk
