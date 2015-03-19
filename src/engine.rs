@@ -1,3 +1,4 @@
+extern crate android_glue;
 extern crate cgmath;
 extern crate png;
 
@@ -6,19 +7,16 @@ use std::default::Default;
 use std::mem;
 use std::ptr;
 
-use self::cgmath::matrix::Matrix4;
-use self::cgmath::point::Point3;
-use self::cgmath::projection;
-use self::cgmath::vector::Vector3;
-use self::png::load_png_from_memory;
+use cgmath::{Matrix4, Point3, Vector3};
 
 use asset_manager;
 use egl;
+use egl::{Context, Display, Surface};
 use gl;
 use input;
+use input::EventType;
 use jni;
 use log;
-use native_window;
 use sensor;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
@@ -66,9 +64,9 @@ impl Default for SavedState {
 
 // RAII managed EGL pointers.  Cleaned up automatically via Drop.
 struct EglContext {
-  display: egl::Display,
-  surface: egl::Surface,
-  context: egl::Context,
+  display: Display,
+  surface: Surface,
+  context: Context,
   width: i32,
   height: i32,
 }
@@ -112,10 +110,10 @@ impl Drop for EglContext {
 // Shared state for our app.
 // TODO: Find a way not to declare all fields public.
 pub struct Engine {
-  pub jvm: &'static jni::JavaVm,
-  pub asset_manager: &'static asset_manager::AssetManager,
-  pub accelerometer_sensor: Option<&'static sensor::Sensor>,
-  pub sensor_event_queue: Option<&'static sensor::EventQueue>,
+  pub jvm: &'static mut android_glue::ffi::JavaVM,
+  pub asset_manager: &'static mut android_glue::ffi::AAssetManager,
+  pub accelerometer_sensor: Option<&'static android_glue::ffi::ASensor>,
+  pub sensor_event_queue: &'static mut android_glue::ffi::ASensorEventQueue,
   pub animating: bool,
   pub egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
@@ -271,12 +269,12 @@ const FRAGMENT_SHADER: &'static str = "\
   }\n";
 
   /// RAII for attachment from current pthread to JVM.  Auto-detaches when it goes out of scope.
-  struct PthreadJvmAttach {
-    jvm: &'static jni::JavaVm,
+  struct PthreadJvmAttach<'a> {
+    jvm: &'a mut android_glue::ffi::JavaVM,
   }
 
-  impl PthreadJvmAttach {
-    fn new(jvm: &'static jni::JavaVm) -> PthreadJvmAttach {
+  impl <'a> PthreadJvmAttach<'a> {
+    fn new(jvm: &'a mut android_glue::ffi::JavaVM) -> PthreadJvmAttach<'a> {
       let res = jni::attach_current_thread_to_jvm(jvm);
       if res < 0 {
         a_fail!("Failed to attach pthread to JVM, status: {}", res);
@@ -285,7 +283,8 @@ const FRAGMENT_SHADER: &'static str = "\
     }
   }
 
-  impl Drop for PthreadJvmAttach {
+  #[unsafe_destructor]
+  impl <'a> Drop for PthreadJvmAttach<'a> {
     fn drop(&mut self) {
       let res = jni::detach_current_thread_from_jvm(self.jvm);
       if res < 0 {
@@ -321,7 +320,7 @@ impl Engine {
     // Set the vertex attributes for position and color.
     gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, STRIDE, &VERTICES));
     gl_try!(gl::enable_vertex_attrib_array(self.position));
-    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, STRIDE, VERTICES.slice_from(3)));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, STRIDE, &VERTICES[3..]));
     gl_try!(gl::enable_vertex_attrib_array(self.texture_coord));
 
     match self.egl_context {
@@ -334,7 +333,7 @@ impl Engine {
   }
 
   /// Load texture atlas from assets folder.
-  fn load_texture_atlas(&self) -> gl::Texture {
+  fn load_texture_atlas(&mut self) -> gl::Texture {
     let vec = {
       // Important: attach the Posix thread to JVM before calling asset manager, auto-detach when done.
       let _jvm_attach = PthreadJvmAttach::new(self.jvm);
@@ -343,7 +342,7 @@ impl Engine {
         .unwrap_or_else(|i| a_fail!("asset_manager::load_asset() failed: {}", i))
     };
 
-    let image = load_png_from_memory(vec.as_slice())
+    let image = png::load_png_from_memory(&vec)
       .unwrap_or_else(|s| a_fail!("load_png_from_memory() failed: {}", s));
 
     let pixels = match image.pixels {
@@ -353,6 +352,7 @@ impl Engine {
             png::PixelsByColorType::K8(_) => "K8",
             png::PixelsByColorType::KA8(_) => "KA8",
             png::PixelsByColorType::RGB8(_) => "RGB8",
+            png::PixelsByColorType::RGBA8(_) => panic!("Should not happen"),
         };
         a_fail!("Only RGBA8 image format supported, was: {}", color_type);
       }
@@ -364,7 +364,7 @@ impl Engine {
     gl_try!(gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR));
     gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE));
     gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE));
-    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, pixels.as_slice()));
+    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, &pixels));
     gl_try!(gl::generate_mipmap_2d());
     gl_try!(gl::bind_texture_2d(0));
 
@@ -415,10 +415,10 @@ impl Engine {
   }
 
   /// Handle touch and key input.  Return true if you handled event, false for any default handling.
-  pub fn handle_input(&mut self, event: &input::Event) -> bool {
+  pub fn handle_input(&mut self, event: &android_glue::ffi::AInputEvent) -> bool {
     match input::get_event_type(event) {
-      input::EventType::Key => false,
-      input::EventType::Motion => {
+      EventType::Key => false,
+      EventType::Motion => {
         let x = input::get_motion_event_x(event, 0);
         let y = input::get_motion_event_y(event, 0);
         a_info!("Touch at ({}, {})", x, y);
@@ -428,26 +428,20 @@ impl Engine {
   }
 
   /// Loop and handle all sensor events if any.
-  pub fn handle_sensor_events(&self) {
-    match self.sensor_event_queue {
-      None => (),
-      Some(ref event_queue) => {
-        'sensor: loop {
-          match sensor::get_event(*event_queue) {
-            Ok(ev) => {
-              self.handle_sensor(&ev);
-              ()
-            },
-            Err(_) => break 'sensor,
-          }
-        }
+  pub fn handle_sensor_events(&mut self) {
+    loop {
+      match sensor::get_event(self.sensor_event_queue) {
+        Ok(ev) => {
+          self.handle_sensor(&ev);
+          ()
+        },
+        Err(_) => return,
       }
     }
   }
 
   /// Handle sensor input.
-  #[allow(unused_variable)]
-  fn handle_sensor(&self, event: &sensor::Event) {
+  fn handle_sensor(&self, _event: &android_glue::ffi::ASensorEvent) {
     // Do nothing.
   }
 
@@ -456,17 +450,12 @@ impl Engine {
     self.animating = true;
 
     // When our app gains focus, we start monitoring the accelerometer.
-    match self.sensor_event_queue {
+    match self.accelerometer_sensor {
       None => (),
-      Some(ref event_queue) => {
-        match self.accelerometer_sensor {
-          None => (),
-          Some(ref sensor) => {
-            enable_sensor(*event_queue, *sensor);
-            // Request 60 events per second, in micros.
-            sensor_event_rate(*event_queue, *sensor, 60);
-          }
-        }
+      Some(ref sensor) => {
+        enable_sensor(self.sensor_event_queue, *sensor);
+        // Request 60 events per second, in micros.
+        sensor_event_rate(self.sensor_event_queue, *sensor, 60);
       }
     }
   }
@@ -480,15 +469,10 @@ impl Engine {
   pub fn lost_focus(&mut self) {
     // When our app loses focus, we stop monitoring the accelerometer.
     // This is to avoid consuming battery while not being used.
-    match self.sensor_event_queue {
+    match self.accelerometer_sensor {
       None => (),
-      Some(ref event_queue) => {
-        match self.accelerometer_sensor {
-          None => (),
-          Some(ref sensor) => {
-            disable_sensor(*event_queue, *sensor);
-          }
-        }
+      Some(ref sensor) => {
+        disable_sensor(self.sensor_event_queue, *sensor);
       }
     };
     // Also stop animating.
@@ -528,7 +512,7 @@ fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   let top = 1.0;
   let near = 1.0;
   let far = 10.0;
-  let projection_matrix = projection::frustum(left, right, bottom, top, near, far);
+  let projection_matrix = cgmath::frustum(left, right, bottom, top, near, far);
 
   projection_matrix * view_matrix
 }
@@ -544,28 +528,34 @@ fn from_angle_y(degrees: f32) -> Matrix4<f32> {
                   0.0, 0.0, 0.0, 1.0)
 }
 
-fn enable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
+fn enable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
+  sensor: &android_glue::ffi::ASensor) {
+
   match sensor::enable_sensor(event_queue, sensor) {
     Ok(_) => (),
     Err(e) => a_fail!("enable_sensor failed: {}", e),
   };
 }
 
-fn sensor_event_rate(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor, events_per_second: i32) {
+fn sensor_event_rate(event_queue: &mut android_glue::ffi::ASensorEventQueue,
+  sensor: &android_glue::ffi::ASensor, events_per_second: i32) {
+
   match sensor::set_event_rate(event_queue, sensor, 1000 * 1000 / events_per_second) {
     Ok(_) => (),
     Err(e) => a_fail!("set_event_rate failed: {}", e),
   };
 }
 
-fn disable_sensor(event_queue: &sensor::EventQueue, sensor: &sensor::Sensor) {
+fn disable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
+  sensor: &android_glue::ffi::ASensor) {
+
   match sensor::disable_sensor(event_queue, sensor) {
     Ok(_) => (),
     Err(e) => a_fail!("disable_sensor failed: {}", e),
   };
 }
 
-pub fn create_egl_context(window: *const native_window::NativeWindow) -> EglContext {
+pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglContext {
   let display = egl::get_display(egl::DEFAULT_DISPLAY);
 
   gl_try!(egl::initialize(display));
@@ -592,7 +582,9 @@ pub fn create_egl_context(window: *const native_window::NativeWindow) -> EglCont
   // reconfigure the NativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
   let format = gl_try!(egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
 
-  native_window::set_buffers_geometry(window, 0, 0, format);
+  unsafe {
+    android_glue::ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, format);
+  }
 
   let surface = gl_try!(egl::create_window_surface(display, config, window));
 

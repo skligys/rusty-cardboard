@@ -3,12 +3,10 @@ extern crate libc;
 
 use libc::{c_char, c_float, c_int, c_uchar, c_uint, c_void, uint8_t};
 use std::ffi::{CStr, CString};
-use std::num;
 use std::ptr;
-use std::vec::Vec;
+use std::str;
 
-use self::cgmath::matrix::Matrix4;
-
+use cgmath::Matrix4;
 use log;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
@@ -84,6 +82,7 @@ pub const DEPTH_BUFFER_BIT: Enum = 0x00000100;
 pub const STENCIL_BUFFER_BIT: Enum = 0x00000400;
 pub const COLOR_BUFFER_BIT: Enum = 0x00004000;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
   NoError,
@@ -110,8 +109,8 @@ pub fn get_string(name: Enum) -> Result<String, Error> {
 }
 
 fn cstr_to_string(c_str: *const c_char) -> String {
-  let v = *::std::vec::as_vec(CStr::from_ptr(c_str).to_bytes());
-  String::from_utf8(v).unwrap()
+  let bytes = unsafe { CStr::from_ptr(c_str) }.to_bytes();
+  str::from_utf8(bytes).unwrap().to_string()
 }
 
 #[allow(dead_code)]
@@ -256,7 +255,7 @@ pub fn get_shader_info_log(shader: Shader) -> Result<String, Error> {
       }
       let err = unsafe { glGetError() };
       match err {
-        NO_ERROR => Ok(string_from_chars(buff.as_slice())),
+        NO_ERROR => Ok(string_from_chars(&buff)),
         INVALID_VALUE => Err(Error::InvalidValue),
         INVALID_OPERATION => Err(Error::InvalidOperation),
         _ => a_fail!("Unknown error from glGetShaderInfoLog(): {}", err),
@@ -386,7 +385,7 @@ pub fn get_program_info_log(program: Program) -> Result<String, Error> {
       }
       let err = unsafe { glGetError() };
       match err {
-        NO_ERROR => Ok(string_from_chars(buff.as_slice())),
+        NO_ERROR => Ok(string_from_chars(&buff)),
         INVALID_VALUE => Err(Error::InvalidValue),
         INVALID_OPERATION => Err(Error::InvalidOperation),
         _ => a_fail!("Unknown error from glGetProgramInfoLog(): {}", err),
@@ -473,6 +472,7 @@ pub fn viewport(x: i32, y: i32, width: i32, height: i32) -> Result<(), Error> {
 
 pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) -> Result<(), Error> {
   unsafe {
+    use cgmath::Array2;
     glUniformMatrix4fv(location, 1, FALSE as u8, matrix.ptr());
   }
   let err = unsafe { glGetError() };
@@ -514,10 +514,12 @@ const FLOAT: Enum = 0x1406;
 #[allow(dead_code)]
 const FIXED: Enum = 0x140C;
 
+pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: &[f32]) ->
+  Result<(), Error> {
 
-pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: &[f32]) -> Result<(), Error> {
   unsafe {
-    glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride, values.as_ptr() as *const Void);
+    glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride,
+      values.as_ptr() as *const Void);
   }
   let err = unsafe { glGetError() };
   match err {
@@ -670,6 +672,7 @@ pub fn active_texture(texture_unit: Enum) -> Result<(), Error> {
   }
 }
 
+#[link(name = "GLESv2")]
 extern {
   fn glGetString(name: Enum) -> *const UByte;
   fn glGetError() -> Enum;
