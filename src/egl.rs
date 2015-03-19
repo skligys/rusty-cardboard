@@ -13,42 +13,42 @@ use native_window;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 pub type Display = *const c_void;
-pub static NO_DISPLAY: Display = 0 as Display;
+pub const NO_DISPLAY: Display = 0 as Display;
 
 type NativeDisplayType = *const c_void;
-pub static DEFAULT_DISPLAY: NativeDisplayType = 0 as NativeDisplayType;
+pub const DEFAULT_DISPLAY: NativeDisplayType = 0 as NativeDisplayType;
 
 pub type Surface = *const c_void;
-pub static NO_SURFACE: Surface = 0 as Surface;
+pub const NO_SURFACE: Surface = 0 as Surface;
 pub type Context = *const c_void;
-pub static NO_CONTEXT: Context = 0 as Context;
+pub const NO_CONTEXT: Context = 0 as Context;
 
 pub type Config = *const c_void;
 
 // Config attributes.
-pub static BLUE_SIZE: Int = 0x3022;
-pub static GREEN_SIZE: Int = 0x3023;
-pub static RED_SIZE: Int = 0x3024;
-pub static NONE: Int =  0x3038;  /* Attrib list terminator */
-pub static RENDERABLE_TYPE: Int = 0x3040;
-pub static OPENGL_ES2_BIT: Int = 0x0004;  /* EGL_RENDERABLE_TYPE mask bits */
-pub static NATIVE_VISUAL_ID: Int = 0x302E;
+pub const BLUE_SIZE: Int = 0x3022;
+pub const GREEN_SIZE: Int = 0x3023;
+pub const RED_SIZE: Int = 0x3024;
+pub const NONE: Int =  0x3038;  /* Attrib list terminator */
+pub const RENDERABLE_TYPE: Int = 0x3040;
+pub const OPENGL_ES2_BIT: Int = 0x0004;  /* EGL_RENDERABLE_TYPE mask bits */
+pub const NATIVE_VISUAL_ID: Int = 0x302E;
 
 // Context attributes.
-pub static CONTEXT_CLIENT_VERSION: Int = 0x3098;
+pub const CONTEXT_CLIENT_VERSION: Int = 0x3098;
 
 // QuerySurface targets
-pub static HEIGHT: Int = 0x3056;
-pub static WIDTH: Int = 0x3057;
+pub const HEIGHT: Int = 0x3056;
+pub const WIDTH: Int = 0x3057;
 
 type NativeWindowType = *const native_window::NativeWindow;
 
@@ -56,22 +56,22 @@ type Int = i32;
 
 // Error codes.
 type Boolean = c_uint;
-static FALSE: Boolean = 0;
-static TRUE: Boolean = 1;
-static NOT_INITIALIZED: Boolean = 0x3001;
-static BAD_ACCESS: Boolean = 0x3002;
-static BAD_ALLOC: Boolean = 0x3003;
-static BAD_ATTRIBUTE: Boolean = 0x3004;
-static BAD_CONFIG: Boolean = 0x3005;
-static BAD_CONTEXT: Boolean = 0x3006;
-static BAD_CURRENT_SURFACE: Boolean = 0x3007;
-static BAD_DISPLAY: Boolean = 0x3008;
-static BAD_MATCH: Boolean = 0x3009;
-static BAD_NATIVE_PIXMAP: Boolean = 0x300A;
-static BAD_NATIVE_WINDOW: Boolean = 0x300B;
-static BAD_PARAMETER: Boolean = 0x300C;
-static BAD_SURFACE: Boolean = 0x300D;
-static CONTEXT_LOST: Boolean = 0x300E;  // EGL 1.1 - IMG_power_management
+const FALSE: Boolean = 0;
+const TRUE: Boolean = 1;
+const NOT_INITIALIZED: Boolean = 0x3001;
+const BAD_ACCESS: Boolean = 0x3002;
+const BAD_ALLOC: Boolean = 0x3003;
+const BAD_ATTRIBUTE: Boolean = 0x3004;
+const BAD_CONFIG: Boolean = 0x3005;
+const BAD_CONTEXT: Boolean = 0x3006;
+const BAD_CURRENT_SURFACE: Boolean = 0x3007;
+const BAD_DISPLAY: Boolean = 0x3008;
+const BAD_MATCH: Boolean = 0x3009;
+const BAD_NATIVE_PIXMAP: Boolean = 0x300A;
+const BAD_NATIVE_WINDOW: Boolean = 0x300B;
+const BAD_PARAMETER: Boolean = 0x300C;
+const BAD_SURFACE: Boolean = 0x300D;
+const CONTEXT_LOST: Boolean = 0x300E;  // EGL 1.1 - IMG_power_management
 
 
 pub fn get_display(display_id: NativeDisplayType) -> Display {
@@ -80,7 +80,7 @@ pub fn get_display(display_id: NativeDisplayType) -> Display {
   }
 }
 
-#[deriving(Show)]
+#[derive(Debug)]
 enum Error {
   NoSurface,
   NotInitialized,
@@ -101,15 +101,15 @@ enum Error {
 
 pub fn initialize(display: Display) -> Result<(), Error> {
   let res = unsafe {
-    eglInitialize(display, ptr::mut_null(), ptr::mut_null())
+    eglInitialize(display, ptr::null_mut(), ptr::null_mut())
   };
   match res {
     TRUE => Ok(()),
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_DISPLAY => Err(BadDisplay),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_DISPLAY => Err(Error::BadDisplay),
         _ => a_fail!("Unknown error from eglInitialize(): {}", err),
       }
     },
@@ -129,8 +129,8 @@ pub fn initialize_with_version(display: Display) -> Result<(Int, Int), Error> {
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_DISPLAY => Err(BadDisplay),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_DISPLAY => Err(Error::BadDisplay),
         _ => a_fail!("Unknown error from eglInitialize(): {}", err),
       }
     },
@@ -146,16 +146,16 @@ pub fn choose_config(display: Display, attribs: &[Int], configs: &mut Vec<Config
   };
   match res {
     TRUE => {
-      configs.truncate(num_config as uint);
+      configs.truncate(num_config as usize);
       Ok(())
     },
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_ATTRIBUTE => Err(BadAttribute),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_PARAMETER => Err(BadParameter),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_ATTRIBUTE => Err(Error::BadAttribute),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_PARAMETER => Err(Error::BadParameter),
         _ => a_fail!("Unknown error from eglChooseConfig(): {}", err),
       }
     },
@@ -173,10 +173,10 @@ pub fn get_config_attrib(display: Display, config: Config, attribute: Int) -> Re
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_ATTRIBUTE => Err(BadAttribute),
-        BAD_CONFIG => Err(BadConfig),
-        BAD_DISPLAY => Err(BadDisplay),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_ATTRIBUTE => Err(Error::BadAttribute),
+        BAD_CONFIG => Err(Error::BadConfig),
+        BAD_DISPLAY => Err(Error::BadDisplay),
         _ => a_fail!("Unknown error from eglGetConfigAttrib(): {}", err),
       }
     },
@@ -194,14 +194,14 @@ pub fn create_window_surface(display: Display, config: Config, window: NativeWin
   } else {
     let err = unsafe { eglGetError() } as Boolean;
     match err {
-      NOT_INITIALIZED => Err(NotInitialized),
-      BAD_ALLOC => Err(BadAlloc),
-      BAD_ATTRIBUTE => Err(BadAttribute),
-      BAD_CONFIG => Err(BadConfig),
-      BAD_DISPLAY => Err(BadDisplay),
-      BAD_MATCH => Err(BadMatch),
-      BAD_NATIVE_WINDOW => Err(BadNativeWindow),
-      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {}", res),
+      NOT_INITIALIZED => Err(Error::NotInitialized),
+      BAD_ALLOC => Err(Error::BadAlloc),
+      BAD_ATTRIBUTE => Err(Error::BadAttribute),
+      BAD_CONFIG => Err(Error::BadConfig),
+      BAD_DISPLAY => Err(Error::BadDisplay),
+      BAD_MATCH => Err(Error::BadMatch),
+      BAD_NATIVE_WINDOW => Err(Error::BadNativeWindow),
+      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {:?}", res),
     }
   }
 }
@@ -217,14 +217,14 @@ pub fn create_window_surface_with_attribs(display: Display, config: Config, wind
   } else {
     let err = unsafe { eglGetError() } as Boolean;
     match err {
-      NOT_INITIALIZED => Err(NotInitialized),
-      BAD_ALLOC => Err(BadAlloc),
-      BAD_ATTRIBUTE => Err(BadAttribute),
-      BAD_CONFIG => Err(BadConfig),
-      BAD_DISPLAY => Err(BadDisplay),
-      BAD_MATCH => Err(BadMatch),
-      BAD_NATIVE_WINDOW => Err(BadNativeWindow),
-      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {}", res),
+      NOT_INITIALIZED => Err(Error::NotInitialized),
+      BAD_ALLOC => Err(Error::BadAlloc),
+      BAD_ATTRIBUTE => Err(Error::BadAttribute),
+      BAD_CONFIG => Err(Error::BadConfig),
+      BAD_DISPLAY => Err(Error::BadDisplay),
+      BAD_MATCH => Err(Error::BadMatch),
+      BAD_NATIVE_WINDOW => Err(Error::BadNativeWindow),
+      _ => a_fail!("Unknown error from eglCreateWindowSurface(): {:?}", res),
     }
   }
 }
@@ -240,14 +240,14 @@ pub fn create_context(display: Display, config: Config, share_context: Context) 
   } else {
     let err = unsafe { eglGetError() } as Boolean;
     match err {
-      NOT_INITIALIZED => Err(NotInitialized),
-      BAD_ALLOC => Err(BadAlloc),
-      BAD_ATTRIBUTE => Err(BadAttribute),
-      BAD_CONFIG => Err(BadConfig),
-      BAD_CONTEXT => Err(BadContext),
-      BAD_DISPLAY => Err(BadDisplay),
-      BAD_MATCH => Err(BadMatch),
-      _ => a_fail!("Unknown error from eglCreateContext(): {}", res),
+      NOT_INITIALIZED => Err(Error::NotInitialized),
+      BAD_ALLOC => Err(Error::BadAlloc),
+      BAD_ATTRIBUTE => Err(Error::BadAttribute),
+      BAD_CONFIG => Err(Error::BadConfig),
+      BAD_CONTEXT => Err(Error::BadContext),
+      BAD_DISPLAY => Err(Error::BadDisplay),
+      BAD_MATCH => Err(Error::BadMatch),
+      _ => a_fail!("Unknown error from eglCreateContext(): {:?}", res),
     }
   }
 }
@@ -262,14 +262,14 @@ pub fn create_context_with_attribs(display: Display, config: Config, share_conte
   } else {
     let err = unsafe { eglGetError() } as Boolean;
     match err {
-      NOT_INITIALIZED => Err(NotInitialized),
-      BAD_ALLOC => Err(BadAlloc),
-      BAD_ATTRIBUTE => Err(BadAttribute),
-      BAD_CONFIG => Err(BadConfig),
-      BAD_CONTEXT => Err(BadContext),
-      BAD_DISPLAY => Err(BadDisplay),
-      BAD_MATCH => Err(BadMatch),
-      _ => a_fail!("Unknown error from eglCreateContext(): {}", res),
+      NOT_INITIALIZED => Err(Error::NotInitialized),
+      BAD_ALLOC => Err(Error::BadAlloc),
+      BAD_ATTRIBUTE => Err(Error::BadAttribute),
+      BAD_CONFIG => Err(Error::BadConfig),
+      BAD_CONTEXT => Err(Error::BadContext),
+      BAD_DISPLAY => Err(Error::BadDisplay),
+      BAD_MATCH => Err(Error::BadMatch),
+      _ => a_fail!("Unknown error from eglCreateContext(): {:?}", res),
     }
   }
 }
@@ -283,17 +283,17 @@ pub fn make_current(display: Display, draw: Surface, read: Surface, context: Con
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_ACCESS => Err(BadAccess),
-        BAD_ALLOC => Err(BadAlloc),
-        BAD_CONTEXT => Err(BadContext),
-        BAD_CURRENT_SURFACE => Err(BadCurrentSurface),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_MATCH => Err(BadMatch),
-        BAD_NATIVE_PIXMAP => Err(BadNativePixmap),
-        BAD_NATIVE_WINDOW => Err(BadNativeWindow),
-        BAD_SURFACE => Err(BadSurface),
-        CONTEXT_LOST => Err(ContextLost),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_ACCESS => Err(Error::BadAccess),
+        BAD_ALLOC => Err(Error::BadAlloc),
+        BAD_CONTEXT => Err(Error::BadContext),
+        BAD_CURRENT_SURFACE => Err(Error::BadCurrentSurface),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_MATCH => Err(Error::BadMatch),
+        BAD_NATIVE_PIXMAP => Err(Error::BadNativePixmap),
+        BAD_NATIVE_WINDOW => Err(Error::BadNativeWindow),
+        BAD_SURFACE => Err(Error::BadSurface),
+        CONTEXT_LOST => Err(Error::ContextLost),
         _ => a_fail!("Unknown error from eglMakeCurrent(): {}", err),
       }
     },
@@ -311,10 +311,10 @@ pub fn query_surface(display: Display, surface: Surface, attribute: Int) -> Resu
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_ATTRIBUTE => Err(BadAttribute),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_SURFACE => Err(BadSurface),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_ATTRIBUTE => Err(Error::BadAttribute),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_SURFACE => Err(Error::BadSurface),
         _ => a_fail!("Unknown error from eglQuerySurface(): {}", err),
       }
     },
@@ -331,10 +331,10 @@ pub fn swap_buffers(display: Display, surface: Surface) -> Result<(), Error> {
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_SURFACE => Err(BadSurface),
-        CONTEXT_LOST => Err(ContextLost),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_SURFACE => Err(Error::BadSurface),
+        CONTEXT_LOST => Err(Error::ContextLost),
         _ => a_fail!("Unknown error from eglSwapBuffers(): {}", err),
       }
     },
@@ -351,9 +351,9 @@ pub fn destroy_context(display: Display, context: Context) -> Result<(), Error> 
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_CONTEXT => Err(BadContext),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_CONTEXT => Err(Error::BadContext),
         _ => a_fail!("Unknown error from eglDestroyContext(): {}", err),
       }
     },
@@ -370,9 +370,9 @@ pub fn destroy_surface(display: Display, surface: Surface) -> Result<(), Error> 
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        NOT_INITIALIZED => Err(NotInitialized),
-        BAD_DISPLAY => Err(BadDisplay),
-        BAD_SURFACE => Err(BadSurface),
+        NOT_INITIALIZED => Err(Error::NotInitialized),
+        BAD_DISPLAY => Err(Error::BadDisplay),
+        BAD_SURFACE => Err(Error::BadSurface),
         _ => a_fail!("Unknown error from eglDestroySurface(): {}", err),
       }
     },
@@ -389,7 +389,7 @@ pub fn terminate(display: Display) -> Result<(), Error> {
     FALSE => {
       let err = unsafe { eglGetError() } as Boolean;
       match err {
-        BAD_DISPLAY => Err(BadDisplay),
+        BAD_DISPLAY => Err(Error::BadDisplay),
         _ => a_fail!("Unknown error from eglTerminate(): {}", err),
       }
     },

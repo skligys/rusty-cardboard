@@ -2,13 +2,12 @@ extern crate cgmath;
 extern crate libc;
 
 use libc::{c_char, c_float, c_int, c_uchar, c_uint, c_void, uint8_t};
-use std::c_str::CString;
+use std::ffi::{CStr, CString};
+use std::num;
 use std::ptr;
 use std::vec::Vec;
 
-use self::cgmath::array::Array2;
 use self::cgmath::matrix::Matrix4;
-use self::cgmath::vector::Vector4;
 
 use log;
 
@@ -18,55 +17,55 @@ use log;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 pub type Enum = c_uint;
 
 // glGetString enums:
 #[allow(dead_code)]
-pub static VENDOR: Enum = 0x1F00;
+pub const VENDOR: Enum = 0x1F00;
 #[allow(dead_code)]
-pub static RENDERER: Enum = 0x1F01;
+pub const RENDERER: Enum = 0x1F01;
 #[allow(dead_code)]
-pub static VERSION: Enum = 0x1F02;
+pub const VERSION: Enum = 0x1F02;
 #[allow(dead_code)]
-pub static EXTENSIONS: Enum = 0x1F03;
+pub const EXTENSIONS: Enum = 0x1F03;
 #[allow(dead_code)]
-pub static SHADING_LANGUAGE_VERSION: Enum = 0x8B8C;
+pub const SHADING_LANGUAGE_VERSION: Enum = 0x8B8C;
 
 // glEnable and glDisable enums:
-pub static CULL_FACE: Enum = 0x0B44;
-pub static DEPTH_TEST: Enum = 0x0B71;
+pub const CULL_FACE: Enum = 0x0B44;
+pub const DEPTH_TEST: Enum = 0x0B71;
 #[allow(dead_code)]
-pub static STENCIL_TEST: Enum = 0x0B90;
+pub const STENCIL_TEST: Enum = 0x0B90;
 #[allow(dead_code)]
-pub static DITHER: Enum = 0x0BD0;
+pub const DITHER: Enum = 0x0BD0;
 #[allow(dead_code)]
-pub static BLEND: Enum = 0x0BE2;
+pub const BLEND: Enum = 0x0BE2;
 #[allow(dead_code)]
-pub static SCISSOR_TEST: Enum = 0x0C11;
+pub const SCISSOR_TEST: Enum = 0x0C11;
 #[allow(dead_code)]
-pub static POLYGON_OFFSET_FILL: Enum = 0x8037;
+pub const POLYGON_OFFSET_FILL: Enum = 0x8037;
 #[allow(dead_code)]
-pub static SAMPLE_ALPHA_TO_COVERAGE: Enum = 0x809E;
+pub const SAMPLE_ALPHA_TO_COVERAGE: Enum = 0x809E;
 #[allow(dead_code)]
-pub static SAMPLE_COVERAGE: Enum = 0x80A0;
+pub const SAMPLE_COVERAGE: Enum = 0x80A0;
 
 // Error codes.
-static NO_ERROR: Enum = 0;
-static INVALID_ENUM: Enum = 0x0500;
-static INVALID_VALUE: Enum = 0x0501;
+const NO_ERROR: Enum = 0;
+const INVALID_ENUM: Enum = 0x0500;
+const INVALID_VALUE: Enum = 0x0501;
 #[allow(dead_code)]
-static INVALID_OPERATION: Enum = 0x0502;
+const INVALID_OPERATION: Enum = 0x0502;
 #[allow(dead_code)]
-static OUT_OF_MEMORY: Enum = 0x0505;
-static INVALID_FRAMEBUFFER_OPERATION: Enum = 0x0506;
+const OUT_OF_MEMORY: Enum = 0x0505;
+const INVALID_FRAMEBUFFER_OPERATION: Enum = 0x0506;
 
 type UByte = uint8_t;
 type Clampf = c_float;
@@ -80,12 +79,12 @@ type Float = c_float;
 type Void = c_void;
 
 // glClear mask bits:
-pub static DEPTH_BUFFER_BIT: Enum = 0x00000100;
+pub const DEPTH_BUFFER_BIT: Enum = 0x00000100;
 #[allow(dead_code)]
-pub static STENCIL_BUFFER_BIT: Enum = 0x00000400;
-pub static COLOR_BUFFER_BIT: Enum = 0x00004000;
+pub const STENCIL_BUFFER_BIT: Enum = 0x00000400;
+pub const COLOR_BUFFER_BIT: Enum = 0x00004000;
 
-#[deriving(Show)]
+#[derive(Debug)]
 enum Error {
   NoError,
   InvalidEnum,
@@ -96,19 +95,23 @@ enum Error {
 }
 
 #[allow(dead_code)]
-pub fn get_string(name: Enum) -> Result<CString, Error> {
+pub fn get_string(name: Enum) -> Result<String, Error> {
   unsafe {
-    let c_ptr = glGetString(name) as *const c_char;
-    if c_ptr != ptr::null() {
-      // false because we don't own this string, it is static
-      return Ok(CString::new(c_ptr, false));
+    let c_str = glGetString(name) as *const c_char;
+    if c_str != ptr::null() {
+      return Ok(cstr_to_string(c_str));
     }
   }
   let err = unsafe { glGetError() };
   match err {
-    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_ENUM => Err(Error::InvalidEnum),
     _ => a_fail!("Unknown error from glGetString(): {}", err),
   }
+}
+
+fn cstr_to_string(c_str: *const c_char) -> String {
+  let v = *::std::vec::as_vec(CStr::from_ptr(c_str).to_bytes());
+  String::from_utf8(v).unwrap()
 }
 
 #[allow(dead_code)]
@@ -119,7 +122,7 @@ pub fn enable(cap: Enum) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_ENUM => Err(Error::InvalidEnum),
     _ => a_fail!("Unknown error from glEnable(): {}", err),
   }
 }
@@ -132,7 +135,7 @@ pub fn disable(cap: Enum) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_ENUM => Err(Error::InvalidEnum),
     _ => a_fail!("Unknown error from glDisable(): {}", err),
   }
 }
@@ -150,14 +153,14 @@ pub fn clear(mask: Bitfield) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glClear(): {}", err),
   }
 }
 
 // Shader types:
-pub static FRAGMENT_SHADER: Enum = 0x8B30;
-pub static VERTEX_SHADER: Enum = 0x8B31;
+pub const FRAGMENT_SHADER: Enum = 0x8B30;
+pub const VERTEX_SHADER: Enum = 0x8B31;
 
 pub type Shader = UInt;
 
@@ -170,7 +173,7 @@ pub fn create_shader(shader_type: Enum) -> Result<Shader, Error> {
   } else {
     let err = unsafe { glGetError() };
     match err {
-      INVALID_ENUM => Err(InvalidEnum),
+      INVALID_ENUM => Err(Error::InvalidEnum),
       _ => a_fail!("Unknown error from glCreateShader(): {}", err),
     }
   }
@@ -185,8 +188,8 @@ pub fn shader_source(shader: Shader, string: &str) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glShaderSource(): {}", err),
   }
 }
@@ -198,27 +201,27 @@ pub fn compile_shader(shader: Shader) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glCompileShader(): {}", err),
   }
 }
 
 // Shader parameter names:
 #[allow(dead_code)]
-pub static SHADER_TYPE: Enum = 0x8B4F;
-pub static COMPILE_STATUS: Enum = 0x8B81;
+pub const SHADER_TYPE: Enum = 0x8B4F;
+pub const COMPILE_STATUS: Enum = 0x8B81;
 #[allow(dead_code)]
-pub static SHADER_SOURCE_LENGTH: Enum = 0x8B88;
+pub const SHADER_SOURCE_LENGTH: Enum = 0x8B88;
 
 // Both shader and program parameter names:
 #[allow(dead_code)]
-pub static DELETE_STATUS: Enum = 0x8B80;
-pub static INFO_LOG_LENGTH: Enum = 0x8B84;
+pub const DELETE_STATUS: Enum = 0x8B80;
+pub const INFO_LOG_LENGTH: Enum = 0x8B84;
 
 // Boolean values:
-pub static FALSE: Int = 0;
-pub static TRUE: Int = 1;
+pub const FALSE: Int = 0;
+pub const TRUE: Int = 1;
 
 pub fn get_shader_param(shader: Shader, param_name: Enum) -> Result<Int, Error> {
   let mut out_param: Int = 0;
@@ -228,9 +231,9 @@ pub fn get_shader_param(shader: Shader, param_name: Enum) -> Result<Int, Error> 
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(out_param),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glGetShaderiv(): {}", err),
   }
 }
@@ -247,15 +250,15 @@ pub fn get_compile_status(shader: Shader) -> Result<bool, Error> {
 pub fn get_shader_info_log(shader: Shader) -> Result<String, Error> {
   match get_shader_param(shader, INFO_LOG_LENGTH) {
     Ok(buffer_size) => {
-      let mut buff = Vec::from_elem(buffer_size as uint, 0);
+      let mut buff = vec![0; buffer_size as usize];
       unsafe {
-        glGetShaderInfoLog(shader, buffer_size, ptr::mut_null(), buff.as_mut_ptr());
+        glGetShaderInfoLog(shader, buffer_size, ptr::null_mut(), buff.as_mut_ptr());
       }
       let err = unsafe { glGetError() };
       match err {
         NO_ERROR => Ok(string_from_chars(buff.as_slice())),
-        INVALID_VALUE => Err(InvalidValue),
-        INVALID_OPERATION => Err(InvalidOperation),
+        INVALID_VALUE => Err(Error::InvalidValue),
+        INVALID_OPERATION => Err(Error::InvalidOperation),
         _ => a_fail!("Unknown error from glGetShaderInfoLog(): {}", err),
       }
     },
@@ -274,7 +277,7 @@ pub fn delete_shader(shader: Shader) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glDeleteShader(): {}", err),
   }
 }
@@ -300,22 +303,22 @@ pub fn attach_shader(program: Program, shader: Shader) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glAttachShader(): {}", err),
   }
 }
 
 pub fn bind_attrib_location(program: Program, index: u32, name: &str) -> Result<(), Error> {
-  let name_c_string = name.to_c_str();
+  let name_c_string = CString::new(name).unwrap();
   unsafe {
     glBindAttribLocation(program, index, name_c_string.as_ptr() as *const i8);
   }
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glBindAttribLocation(): {}", err),
   }
 }
@@ -327,8 +330,8 @@ pub fn link_program(program: Program) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glLinkProgram(): {}", err),
   }
 }
@@ -336,19 +339,19 @@ pub fn link_program(program: Program) -> Result<(), Error> {
 // Program parameter names:
 // See also: "Both shader and program parameter names".
 #[allow(dead_code)]
-pub static LINK_STATUS: Enum = 0x8B82;
+pub const LINK_STATUS: Enum = 0x8B82;
 #[allow(dead_code)]
-pub static VALIDATE_STATUS: Enum = 0x8B83;
+pub const VALIDATE_STATUS: Enum = 0x8B83;
 #[allow(dead_code)]
-pub static ATTACHED_SHADERS: Enum = 0x8B85;
+pub const ATTACHED_SHADERS: Enum = 0x8B85;
 #[allow(dead_code)]
-pub static ACTIVE_UNIFORMS: Enum = 0x8B86;
+pub const ACTIVE_UNIFORMS: Enum = 0x8B86;
 #[allow(dead_code)]
-pub static ACTIVE_UNIFORM_MAX_LENGTH: Enum = 0x8B87;
+pub const ACTIVE_UNIFORM_MAX_LENGTH: Enum = 0x8B87;
 #[allow(dead_code)]
-pub static ACTIVE_ATTRIBUTES: Enum = 0x8B89;
+pub const ACTIVE_ATTRIBUTES: Enum = 0x8B89;
 #[allow(dead_code)]
-pub static ACTIVE_ATTRIBUTE_MAX_LENGTH: Enum = 0x8B8A;
+pub const ACTIVE_ATTRIBUTE_MAX_LENGTH: Enum = 0x8B8A;
 
 pub fn get_program_param(program: Program, param_name: Enum) -> Result<Int, Error> {
   let mut out_param: Int = 0;
@@ -358,9 +361,9 @@ pub fn get_program_param(program: Program, param_name: Enum) -> Result<Int, Erro
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(out_param),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glGetProgramiv(): {}", err),
   }
 }
@@ -377,15 +380,15 @@ pub fn get_link_status(program: Program) -> Result<bool, Error> {
 pub fn get_program_info_log(program: Program) -> Result<String, Error> {
   match get_program_param(program, INFO_LOG_LENGTH) {
     Ok(buffer_size) => {
-      let mut buff = Vec::from_elem(buffer_size as uint, 0);
+      let mut buff = vec![0; buffer_size as usize];
       unsafe {
-        glGetProgramInfoLog(program, buffer_size, ptr::mut_null(), buff.as_mut_ptr());
+        glGetProgramInfoLog(program, buffer_size, ptr::null_mut(), buff.as_mut_ptr());
       }
       let err = unsafe { glGetError() };
       match err {
         NO_ERROR => Ok(string_from_chars(buff.as_slice())),
-        INVALID_VALUE => Err(InvalidValue),
-        INVALID_OPERATION => Err(InvalidOperation),
+        INVALID_VALUE => Err(Error::InvalidValue),
+        INVALID_OPERATION => Err(Error::InvalidOperation),
         _ => a_fail!("Unknown error from glGetProgramInfoLog(): {}", err),
       }
     },
@@ -400,7 +403,7 @@ pub fn delete_program(program: Program) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glDeleteProgram(): {}", err),
   }
 }
@@ -408,7 +411,7 @@ pub fn delete_program(program: Program) -> Result<(), Error> {
 pub type UnifLoc = Int;
 
 pub fn get_uniform_location(program: Program, name: &str) -> Result<UnifLoc, Error> {
-  let name_c_string = name.to_c_str();
+  let name_c_string = CString::new(name).unwrap();
   let res = unsafe {
     glGetUniformLocation(program, name_c_string.as_ptr())
   };
@@ -417,8 +420,8 @@ pub fn get_uniform_location(program: Program, name: &str) -> Result<UnifLoc, Err
   } else {
     let err = unsafe { glGetError() };
     match err {
-      INVALID_VALUE => Err(InvalidValue),
-      INVALID_OPERATION => Err(InvalidOperation),
+      INVALID_VALUE => Err(Error::InvalidValue),
+      INVALID_OPERATION => Err(Error::InvalidOperation),
       _ => a_fail!("Unknown error from glGetUniformLocation(): {}", err),
     }
   }
@@ -427,7 +430,7 @@ pub fn get_uniform_location(program: Program, name: &str) -> Result<UnifLoc, Err
 pub type AttribLoc = Int;
 
 pub fn get_attrib_location(program: Program, name: &str) -> Result<AttribLoc, Error> {
-  let name_c_string = name.to_c_str();
+  let name_c_string = CString::new(name).unwrap();
   let res = unsafe {
     glGetAttribLocation(program, name_c_string.as_ptr())
   };
@@ -436,8 +439,8 @@ pub fn get_attrib_location(program: Program, name: &str) -> Result<AttribLoc, Er
   } else {
     let err = unsafe { glGetError() };
     match err {
-      INVALID_VALUE => Err(InvalidValue),
-      INVALID_OPERATION => Err(InvalidOperation),
+      INVALID_VALUE => Err(Error::InvalidValue),
+      INVALID_OPERATION => Err(Error::InvalidOperation),
       _ => a_fail!("Unknown error from glGetAttribLocation(): {}", err),
     }
   }
@@ -450,8 +453,8 @@ pub fn use_program(program: Program) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glUseProgram(): {}", err),
   }
 }
@@ -463,21 +466,20 @@ pub fn viewport(x: i32, y: i32, width: i32, height: i32) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glViewport(): {}", err),
   }
 }
 
 pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) -> Result<(), Error> {
-  let arr: &Array2<Vector4<f32>, Vector4<f32>, f32> = matrix;
   unsafe {
-    glUniformMatrix4fv(location, 1, FALSE as u8, arr.ptr());
+    glUniformMatrix4fv(location, 1, FALSE as u8, matrix.ptr());
   }
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glUniformMatrix4fv(): {}", err),
   }
 }
@@ -489,28 +491,28 @@ pub fn uniform_int(location: UnifLoc, value: Int) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glUniform1i(): {}", err),
   }
 }
 
 // Data types:
 #[allow(dead_code)]
-static BYTE: Enum = 0x1400;
+const BYTE: Enum = 0x1400;
 #[allow(dead_code)]
-static UNSIGNED_BYTE: Enum = 0x1401;
+const UNSIGNED_BYTE: Enum = 0x1401;
 #[allow(dead_code)]
-static SHORT: Enum = 0x1402;
+const SHORT: Enum = 0x1402;
 #[allow(dead_code)]
-static UNSIGNED_SHORT: Enum = 0x1403;
+const UNSIGNED_SHORT: Enum = 0x1403;
 #[allow(dead_code)]
-static INT: Enum = 0x1404;
+const INT: Enum = 0x1404;
 #[allow(dead_code)]
-static UNSIGNED_INT: Enum = 0x1405;
-static FLOAT: Enum = 0x1406;
+const UNSIGNED_INT: Enum = 0x1405;
+const FLOAT: Enum = 0x1406;
 #[allow(dead_code)]
-static FIXED: Enum = 0x140C;
+const FIXED: Enum = 0x140C;
 
 
 pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: &[f32]) -> Result<(), Error> {
@@ -520,8 +522,8 @@ pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glVertexAttribPointer(): {}", err),
   }
 }
@@ -533,13 +535,13 @@ pub fn enable_vertex_attrib_array(location: AttribLoc) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glEnableVertexAttribArray(): {}", err),
   }
 }
 
 // glDrawArrays modes:
-static TRIANGLES: Enum = 0x0004;
+const TRIANGLES: Enum = 0x0004;
 
 pub fn draw_arrays_triangles(count: i32) -> Result<(), Error> {
   unsafe {
@@ -548,9 +550,9 @@ pub fn draw_arrays_triangles(count: i32) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_FRAMEBUFFER_OPERATION => Err(InvalidFramebufferOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_FRAMEBUFFER_OPERATION => Err(Error::InvalidFramebufferOperation),
     _ => a_fail!("Unknown error from glDrawArrays(): {}", err),
   }
 }
@@ -565,12 +567,12 @@ pub fn gen_texture() -> Result<Texture, Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(texture),
-    INVALID_VALUE => Err(InvalidValue),
+    INVALID_VALUE => Err(Error::InvalidValue),
     _ => a_fail!("Unknown error from glGenTextures(): {}", err),
   }
 }
 
-static TEXTURE_2D: Enum = 0x0DE1;
+const TEXTURE_2D: Enum = 0x0DE1;
 
 pub fn bind_texture_2d(texture: Texture) -> Result<(), Error> {
   unsafe {
@@ -579,38 +581,38 @@ pub fn bind_texture_2d(texture: Texture) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glBindTexture(): {}", err),
   }
 }
 
 // Texture parameter names:
-pub static TEXTURE_MAG_FILTER: Enum = 0x2800;
-pub static TEXTURE_MIN_FILTER: Enum = 0x2801;
-pub static TEXTURE_WRAP_S: Enum = 0x2802;
-pub static TEXTURE_WRAP_T: Enum = 0x2803;
+pub const TEXTURE_MAG_FILTER: Enum = 0x2800;
+pub const TEXTURE_MIN_FILTER: Enum = 0x2801;
+pub const TEXTURE_WRAP_S: Enum = 0x2802;
+pub const TEXTURE_WRAP_T: Enum = 0x2803;
 
 // Texture parameter values for TEXTURE_MAG_FILTER:
 #[allow(dead_code)]
-pub static NEAREST: Int = 0x2600;
-pub static LINEAR: Int = 0x2601;
+pub const NEAREST: Int = 0x2600;
+pub const LINEAR: Int = 0x2601;
 
 // Texture parameter values for TEXTURE_MIN_FILTER:
 #[allow(dead_code)]
-pub static NEAREST_MIPMAP_NEAREST: Int = 0x2700;
+pub const NEAREST_MIPMAP_NEAREST: Int = 0x2700;
 #[allow(dead_code)]
-pub static LINEAR_MIPMAP_NEAREST: Int = 0x2701;
+pub const LINEAR_MIPMAP_NEAREST: Int = 0x2701;
 #[allow(dead_code)]
-pub static NEAREST_MIPMAP_LINEAR: Int = 0x2702;
-pub static LINEAR_MIPMAP_LINEAR: Int = 0x2703;
+pub const NEAREST_MIPMAP_LINEAR: Int = 0x2702;
+pub const LINEAR_MIPMAP_LINEAR: Int = 0x2703;
 
 // Texture parameter values for TEXTURE_WRAP_S, TEXTURE_WRAP_T:
 #[allow(dead_code)]
-pub static REPEAT: Int = 0x2901;
-pub static CLAMP_TO_EDGE: Int = 0x812F;
+pub const REPEAT: Int = 0x2901;
+pub const CLAMP_TO_EDGE: Int = 0x812F;
 #[allow(dead_code)]
-pub static MIRRORED_REPEAT: Int = 0x8370;
+pub const MIRRORED_REPEAT: Int = 0x8370;
 
 pub fn texture_2d_param(param_name: Enum, param_value: Int) -> Result<(), Error> {
   unsafe {
@@ -619,12 +621,12 @@ pub fn texture_2d_param(param_name: Enum, param_value: Int) -> Result<(), Error>
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_ENUM => Err(Error::InvalidEnum),
     _ => a_fail!("Unknown error from glTexParameteri(): {}", err),
   }
 }
 
-static RGBA: Enum = 0x1908;
+const RGBA: Enum = 0x1908;
 
 pub fn texture_2d_image_rgba(width: Int, height: Int, data: &[u8]) -> Result<(), Error> {
   unsafe {
@@ -633,9 +635,9 @@ pub fn texture_2d_image_rgba(width: Int, height: Int, data: &[u8]) -> Result<(),
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_VALUE => Err(InvalidValue),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_VALUE => Err(Error::InvalidValue),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glTexImage2D(): {}", err),
   }
 }
@@ -647,14 +649,14 @@ pub fn generate_mipmap_2d() -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
-    INVALID_OPERATION => Err(InvalidOperation),
+    INVALID_ENUM => Err(Error::InvalidEnum),
+    INVALID_OPERATION => Err(Error::InvalidOperation),
     _ => a_fail!("Unknown error from glGenerateMipmap(): {}", err),
   }
 }
 
 // Texture units:
-pub static TEXTURE0: Enum = 0x84C0;
+pub const TEXTURE0: Enum = 0x84C0;
 
 pub fn active_texture(texture_unit: Enum) -> Result<(), Error> {
   unsafe {
@@ -663,7 +665,7 @@ pub fn active_texture(texture_unit: Enum) -> Result<(), Error> {
   let err = unsafe { glGetError() };
   match err {
     NO_ERROR => Ok(()),
-    INVALID_ENUM => Err(InvalidEnum),
+    INVALID_ENUM => Err(Error::InvalidEnum),
     _ => a_fail!("Unknown error from glActiveTexture(): {}", err),
   }
 }

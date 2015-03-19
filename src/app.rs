@@ -133,11 +133,11 @@ pub struct AndroidApp {
 }
 
 // Native app glue command enums:
-pub static CMD_INIT_WINDOW: int32_t = 1;
-pub static CMD_TERM_WINDOW: int32_t = 2;
-pub static CMD_GAINED_FOCUS: int32_t = 6;
-pub static CMD_LOST_FOCUS: int32_t = 7;
-pub static CMD_SAVE_STATE: int32_t = 12;
+pub const CMD_INIT_WINDOW: int32_t = 1;
+pub const CMD_TERM_WINDOW: int32_t = 2;
+pub const CMD_GAINED_FOCUS: int32_t = 6;
+pub const CMD_LOST_FOCUS: int32_t = 7;
+pub const CMD_SAVE_STATE: int32_t = 12;
 
 /**
  * Data associated with an Looper fd that will be returned as the "data" when that source has

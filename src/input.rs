@@ -8,13 +8,13 @@ use log;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 /// Input event is an opaque structure.
 pub struct Event;
@@ -22,8 +22,8 @@ pub struct Event;
 pub struct Queue;
 
 // Input event types:
-static EVENT_TYPE_KEY: int32_t = 1;
-static EVENT_TYPE_MOTION: int32_t = 2;
+const EVENT_TYPE_KEY: int32_t = 1;
+const EVENT_TYPE_MOTION: int32_t = 2;
 pub enum EventType {
   Key,
   Motion,
@@ -35,8 +35,8 @@ pub fn get_event_type(event: *const Event) -> EventType {
     AInputEvent_getType(event)
   };
   match res {
-    EVENT_TYPE_KEY => Key,
-    EVENT_TYPE_MOTION => Motion,
+    EVENT_TYPE_KEY => EventType::Key,
+    EVENT_TYPE_MOTION => EventType::Motion,
     _ => a_fail!("Unknown event type: {}", res),
   }
 }

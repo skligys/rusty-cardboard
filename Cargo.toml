@@ -1,0 +1,29 @@
+[package]
+name = "RustyCardboard"
+version = "0.0.1"
+authors = ["Skirmantas Kligys <Skirmantas.Kligys@gmail.com>"]
+description = "Minecraft simulation in Rust."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/skligys/rusty-cardboard"
+build = "build.rs"
+
+[dependencies.gl_common]
+gl_common = "*"
+
+[build-dependencies]
+gl_generator = "*"
+khronos_api = "*"
+
+[target.arm-linux-androideabi.dependencies.android_glue]
+git = "https://github.com/skligys/android-rs-glue"
+
+[dependencies.cgmath]
+git = "https://github.com/bjz/cgmath-rs.git"
+
+[dependencies.png]
+git = "https://github.com/servo/rust-png.git"
+
+[dependencies]
+libc = "*"
+time = "*"

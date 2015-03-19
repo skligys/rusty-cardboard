@@ -1,5 +1,5 @@
 use libc::{c_char, c_int, c_void, int32_t, off_t};
-use std::vec::raw;
+use std::ffi::CString;
 
 /// Opaque structure representing asset manager.
 pub struct AssetManager;
@@ -9,12 +9,12 @@ pub struct Asset;
 
 // Modes for opening assets:
 #[allow(dead_code)]
-static MODE_UNKNOWN: c_int = 0;
+const MODE_UNKNOWN: c_int = 0;
 #[allow(dead_code)]
-static MODE_RANDOM: c_int = 1;
-static MODE_STREAMING: c_int = 2;
+const MODE_RANDOM: c_int = 1;
+const MODE_STREAMING: c_int = 2;
 #[allow(dead_code)]
-static MODE_BUFFER: c_int = 3;
+const MODE_BUFFER: c_int = 3;
 
 struct AssetCloser {
   asset: *const Asset,
@@ -27,7 +27,7 @@ impl Drop for AssetCloser {
 }
 
 pub fn load_asset(manager: &AssetManager, filename: &str) -> Result<Vec<u8>, int32_t> {
-  let filename_c_str = filename.to_c_str();
+  let filename_c_str = CString::new(filename).unwrap();
   let asset = unsafe {
     AAssetManager_open(manager, filename_c_str.as_ptr(), MODE_STREAMING)
   };
@@ -42,7 +42,7 @@ pub fn load_asset(manager: &AssetManager, filename: &str) -> Result<Vec<u8>, int
     return Err(-2);
   }
   let vec = unsafe {
-    raw::from_buf(buff as *const u8, len as uint)
+    Vec::from_raw_buf(buff as *const u8, len as usize)
   };
   Ok(vec)
 }

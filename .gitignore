@@ -1,13 +1,1 @@
-bin
-libs
-obj
-
-ant.properties
-build.xml
-config.mk
-jni/*.a
-jni/*.rlib
-local.properties
-proguard-project.txt
-project.properties
-skligys.keystore
+target/

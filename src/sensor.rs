@@ -11,13 +11,13 @@ use log;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 // Opaque structure.
 pub struct Manager;
@@ -38,7 +38,7 @@ struct Vector {
   #[allow(dead_code)]
   status: int8_t,
   #[allow(dead_code)]
-  reserved: [uint8_t, ..3]
+  reserved: [uint8_t; 3]
 }
 
 impl Default for Vector {
@@ -63,7 +63,7 @@ pub struct Event {
   #[allow(dead_code)]
   acceleration: Vector,
   #[allow(dead_code)]
-  reserved1: [int32_t, ..4]
+  reserved1: [int32_t; 4]
 }
 
 impl Default for Event {
@@ -82,10 +82,10 @@ impl Default for Event {
 
 // Looper id enums:
 #[allow(dead_code)]
-pub static LOOPER_ID_MAIN: c_int = 1;
+pub const LOOPER_ID_MAIN: c_int = 1;
 #[allow(dead_code)]
-pub static LOOPER_ID_INPUT: c_int = 2;
-pub static LOOPER_ID_USER: c_int = 3;
+pub const LOOPER_ID_INPUT: c_int = 2;
+pub const LOOPER_ID_USER: c_int = 3;
 
 /**
  * A looper is the state tracking an event loop for a thread.  Loopers do not define event
@@ -115,9 +115,9 @@ pub struct Looper;
 type LooperCallback = *const c_void;
 
 // Sensor type enums:
-pub static TYPE_ACCELEROMETER: c_int = 1;
+pub const TYPE_ACCELEROMETER: c_int = 1;
 #[allow(dead_code)]
-pub static TYPE_MAGNETIC_FIELD: c_int = 2;
+pub const TYPE_MAGNETIC_FIELD: c_int = 2;
 
 /// Get an unsafe pointer to the sensor manager.  Manager is a singleton.
 pub fn get_instance() -> &'static Manager {
@@ -215,14 +215,14 @@ pub fn get_event(queue: &EventQueue) -> Result<Event, c_int> {
  * The poll was awoken using wake() before the timeout expired and no callbacks were executed and
  * no other file descriptors were ready.
  */
-static ALOOPER_POLL_WAKE: c_int = -1;
+const ALOOPER_POLL_WAKE: c_int = -1;
 /// One or more callbacks were executed.
 #[allow(dead_code)]
-static ALOOPER_POLL_CALLBACK: c_int = -2;
+const ALOOPER_POLL_CALLBACK: c_int = -2;
 /// The timeout expired.
-static ALOOPER_POLL_TIMEOUT: c_int = -3;
+const ALOOPER_POLL_TIMEOUT: c_int = -3;
 /// An error occurred.
-static ALOOPER_POLL_ERROR: c_int = -4;
+const ALOOPER_POLL_ERROR: c_int = -4;
 
 struct PollResult {
   pub id: c_int,
@@ -272,9 +272,9 @@ pub fn poll_all(timeout_millis: c_int) -> Result<PollResult, PollError> {
       &mut data as *mut *const c_void)
   };
   match res {
-    ALOOPER_POLL_WAKE => Err(PollWake),
-    ALOOPER_POLL_TIMEOUT => Err(PollTimeout),
-    ALOOPER_POLL_ERROR => Err(PollError),
+    ALOOPER_POLL_WAKE => Err(PollError::PollWake),
+    ALOOPER_POLL_TIMEOUT => Err(PollError::PollTimeout),
+    ALOOPER_POLL_ERROR => Err(PollError::PollError),
     id if id >= 0 => Ok(PollResult { id: id, fd: fd, events: events, data: data }),
     err => a_fail!("Unknown error from ALooper_pollAll(): {}", err),
   }

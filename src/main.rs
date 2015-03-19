@@ -1,4 +1,8 @@
-#![feature(macro_rules)]
+#![feature(macro_rules, start)]
+
+#[cfg(target_os = "android")]
+#[macro_use]
+extern crate android_glue;
 
 extern crate cgmath;
 extern crate libc;
@@ -34,13 +38,13 @@ mod sensor;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 /// Logs to Android info logging.
 macro_rules! a_info(
@@ -48,17 +52,17 @@ macro_rules! a_info(
   ($fmt: expr, $($arg:tt)*) => (
     log::i_f(format!($fmt, $($arg)*));
   );
-)
+);
 
 /// Initialize EGL context for the current display.
 fn init_display(app_ptr: *mut app::AndroidApp, engine: &mut engine::Engine) {
   a_info!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let window = unsafe { (*app_ptr).window };
-  let egl_context = box engine::create_egl_context(window);
+  let egl_context = Box::new(engine::create_egl_context(window));
   engine.init(egl_context);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
-  a_info!("Renderer initialized, {:.3f}ms", elapsed_ms);
+  a_info!("Renderer initialized, {:.3}ms", elapsed_ms);
 }
 
 /// Process the next input event.
@@ -156,13 +160,15 @@ fn rust_event_loop(app_ptr: *mut app::AndroidApp, engine_ptr: *mut engine::Engin
   }
 }
 
+#[cfg(target_os = "android")]
+android_start!(main);
+
 /**
  * This is the main entry point of a native application that is using android_native_app_glue.
  * It runs in its own thread, with its own event loop for receiving input events and doing other
  * things.
  */
-#[no_mangle]
-pub extern fn rust_android_main(app_ptr: *mut app::AndroidApp) {
+pub fn main(app_ptr: *mut app::AndroidApp) {
   a_info!("-------------------------------------------------------------------");
 
   let app: &mut app::AndroidApp = unsafe { &mut *app_ptr };

@@ -27,13 +27,13 @@ use sensor;
 macro_rules! a_fail(
   ($msg: expr) => ({
     log::e($msg);
-    fail!();
+    panic!();
   });
   ($fmt: expr, $($arg:tt)*) => ({
     log::e_f(format!($fmt, $($arg)*));
-    fail!();
+    panic!();
   });
-)
+);
 
 /// Logs to Android info logging.
 macro_rules! a_info(
@@ -41,17 +41,17 @@ macro_rules! a_info(
   ($fmt: expr, $($arg:tt)*) => (
     log::i_f(format!($fmt, $($arg)*));
   );
-)
+);
 
 /// On error, logs the error and terminates.  On success, returns the result.
 macro_rules! gl_try(
   ($e: expr) => (
     match $e {
       Ok(e) => e,
-      Err(e) => a_fail!("{} failed: {}", stringify!($e), e),
+      Err(e) => a_fail!("{} failed: {:?}", stringify!($e), e),
     }
   )
-)
+);
 
 // Saved state data.  Compatible with C.
 struct SavedState {
@@ -130,13 +130,13 @@ pub struct Engine {
   pub texture: gl::Texture,
 }
 
-static NUMBERS_PER_VERTEX: i32 = 5;
-static BYTES_PER_F32: i32 = 4;
-static STRIDE: i32 = NUMBERS_PER_VERTEX * BYTES_PER_F32;
+const NUMBERS_PER_VERTEX: i32 = 5;
+const BYTES_PER_F32: i32 = 4;
+const STRIDE: i32 = NUMBERS_PER_VERTEX * BYTES_PER_F32;
 
 // X, Y, Z,
 // S, T (note: T axis is going from top down)
-static VERTICES: [f32, ..180] = [
+const VERTICES: [f32; 180] = [
   // Front face.
   -0.5, -0.5, 0.5,
   0.5, 1.0,
@@ -252,7 +252,7 @@ static VERTICES: [f32, ..180] = [
   0.0, 0.5,
 ];
 
-static VERTEX_SHADER: &'static str = "\
+const VERTEX_SHADER: &'static str = "\
   uniform mat4 u_MVPMatrix;\n\
   attribute vec4 a_Position;\n\
   attribute vec2 a_TextureCoord;\n\
@@ -262,7 +262,7 @@ static VERTEX_SHADER: &'static str = "\
     gl_Position = u_MVPMatrix * a_Position;
   }\n";
 
-static FRAGMENT_SHADER: &'static str = "\
+const FRAGMENT_SHADER: &'static str = "\
   precision mediump float;\n\
   uniform sampler2D u_TextureUnit;\n\
   varying vec2 v_TextureCoord;\n\
@@ -319,7 +319,7 @@ impl Engine {
     gl_try!(gl::uniform_int(self.texture_unit, 0));
 
     // Set the vertex attributes for position and color.
-    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, STRIDE, VERTICES));
+    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, STRIDE, &VERTICES));
     gl_try!(gl::enable_vertex_attrib_array(self.position));
     gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, STRIDE, VERTICES.slice_from(3)));
     gl_try!(gl::enable_vertex_attrib_array(self.texture_coord));
@@ -346,9 +346,17 @@ impl Engine {
     let image = load_png_from_memory(vec.as_slice())
       .unwrap_or_else(|s| a_fail!("load_png_from_memory() failed: {}", s));
 
-    if image.color_type != png::RGBA8 {
-      a_fail!("Only RGBA8 image format supported, was: {}", image.color_type);
-    }
+    let pixels = match image.pixels {
+      png::PixelsByColorType::RGBA8(v) => v,
+      _ => {
+        let color_type = match image.pixels {
+            png::PixelsByColorType::K8(_) => "K8",
+            png::PixelsByColorType::KA8(_) => "KA8",
+            png::PixelsByColorType::RGB8(_) => "RGB8",
+        };
+        a_fail!("Only RGBA8 image format supported, was: {}", color_type);
+      }
+    };
 
     let texture = gl_try!(gl::gen_texture());
     gl_try!(gl::bind_texture_2d(texture));
@@ -356,7 +364,7 @@ impl Engine {
     gl_try!(gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR));
     gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE));
     gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE));
-    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, image.pixels.as_slice()));
+    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, pixels.as_slice()));
     gl_try!(gl::generate_mipmap_2d());
     gl_try!(gl::bind_texture_2d(0));
 
@@ -409,8 +417,8 @@ impl Engine {
   /// Handle touch and key input.  Return true if you handled event, false for any default handling.
   pub fn handle_input(&mut self, event: &input::Event) -> bool {
     match input::get_event_type(event) {
-      input::Key => false,
-      input::Motion => {
+      input::EventType::Key => false,
+      input::EventType::Motion => {
         let x = input::get_motion_event_x(event, 0);
         let y = input::get_motion_event_y(event, 0);
         a_info!("Touch at ({}, {})", x, y);
@@ -528,6 +536,7 @@ fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
 /// Create a matrix from a rotation around the `y` axis (yaw).
 fn from_angle_y(degrees: f32) -> Matrix4<f32> {
     // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
+    use std::num::Float;
     let (s, c) = degrees.to_radians().sin_cos();
     Matrix4::new(   c, 0.0,  -s, 0.0,
                   0.0, 1.0, 0.0, 0.0,
@@ -572,11 +581,11 @@ pub fn create_egl_context(window: *const native_window::NativeWindow) -> EglCont
     egl::NONE
   ];
   let mut configs = vec!(ptr::null());
-  gl_try!(egl::choose_config(display, attribs_config, &mut configs));
+  gl_try!(egl::choose_config(display, &attribs_config, &mut configs));
   if configs.len() == 0 {
     a_fail!("choose_config() did not find any configurations");
   }
-  let config = *configs.get(0);
+  let config = configs[0];
 
   // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
   // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
@@ -591,7 +600,7 @@ pub fn create_egl_context(window: *const native_window::NativeWindow) -> EglCont
     egl::CONTEXT_CLIENT_VERSION, 2,
     egl::NONE
   ];
-  let context = gl_try!(egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, attribs_context));
+  let context = gl_try!(egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, &attribs_context));
 
   gl_try!(egl::make_current(display, surface, surface, context));
 

@@ -1,4 +1,5 @@
 use libc::{c_char, c_int};
+use std::ffi::CString;
 
 // Logging priorities:
 #[allow(dead_code)]
@@ -15,7 +16,7 @@ static FATAL: c_int = 7;
 // Bridges to Android logging at various priorities.
 #[allow(dead_code)]
 pub fn v(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(VERBOSE, c_string.as_ptr());
   }
@@ -23,7 +24,7 @@ pub fn v(msg: &str) {
 
 #[allow(dead_code)]
 pub fn v_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(VERBOSE, c_string.as_ptr());
   }
@@ -31,7 +32,7 @@ pub fn v_f(msg: String) {
 
 #[allow(dead_code)]
 pub fn d(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(DEBUG, c_string.as_ptr());
   }
@@ -39,14 +40,14 @@ pub fn d(msg: &str) {
 
 #[allow(dead_code)]
 pub fn d_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(DEBUG, c_string.as_ptr());
   }
 }
 
 pub fn i(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(INFO, c_string.as_ptr());
   }
@@ -54,7 +55,7 @@ pub fn i(msg: &str) {
 
 #[allow(dead_code)]
 pub fn i_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(INFO, c_string.as_ptr());
   }
@@ -62,7 +63,7 @@ pub fn i_f(msg: String) {
 
 #[allow(dead_code)]
 pub fn w(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(WARN, c_string.as_ptr());
   }
@@ -70,21 +71,21 @@ pub fn w(msg: &str) {
 
 #[allow(dead_code)]
 pub fn w_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(WARN, c_string.as_ptr());
   }
 }
 
 pub fn e(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(ERROR, c_string.as_ptr());
   }
 }
 
 pub fn e_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(ERROR, c_string.as_ptr());
   }
@@ -92,7 +93,7 @@ pub fn e_f(msg: String) {
 
 #[allow(dead_code)]
 pub fn wtf(msg: &str) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(FATAL, c_string.as_ptr());
   }
@@ -100,7 +101,7 @@ pub fn wtf(msg: &str) {
 
 #[allow(dead_code)]
 pub fn wtf_f(msg: String) {
-  let c_string = msg.to_c_str();
+  let c_string = CString::new(msg).unwrap();
   unsafe {
     c_log_string(FATAL, c_string.as_ptr());
   }
