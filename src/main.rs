@@ -19,28 +19,27 @@ mod engine;
 mod gl;
 mod input;
 mod jni;
-mod log;
 mod sensor;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
 /// Logs the error to Android error logging and fails.
-macro_rules! a_fail(
-  ($msg: expr) => ({
-    log::e($msg);
-    panic!();
-  });
-  ($fmt: expr, $($arg:tt)*) => ({
-    log::e_f(format!($fmt, $($arg)*));
-    panic!();
-  });
+macro_rules! a_panic(
+  ($msg: expr) => (
+    panic!($msg);
+  );
+  ($fmt: expr, $($arg:tt)*) => (
+    panic!($fmt, $($arg)*);
+  );
 );
 
 /// Logs to Android info logging.
 macro_rules! a_info(
-  ($msg: expr) => ( log::i($msg); );
+  ($msg: expr) => (
+    println!($msg);
+  );
   ($fmt: expr, $($arg:tt)*) => (
-    log::i_f(format!($fmt, $($arg)*));
+    println!($fmt, $($arg)*);
   );
 );
 
@@ -62,7 +61,7 @@ pub extern fn handle_input(app: *mut android_glue::ffi::android_app,
 
   let engine_ptr = unsafe { (*app).userData as *mut engine::Engine };
   if engine_ptr.is_null() {
-    a_fail!("Engine pointer is null");
+    a_panic!("Engine pointer is null");
   }
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
   let event: &android_glue::ffi::AInputEvent = unsafe { &*event_ptr };
@@ -81,7 +80,7 @@ pub extern fn handle_input(app: *mut android_glue::ffi::android_app,
 pub extern fn handle_cmd(app_ptr: *mut android_glue::ffi::android_app, command: int32_t) {
   let engine_ptr = unsafe { (*app_ptr).userData as *mut engine::Engine };
   if engine_ptr.is_null() {
-    a_fail!("Engine pointer is null");
+    a_panic!("Engine pointer is null");
   }
   let engine: &mut engine::Engine = unsafe { &mut *engine_ptr };
 

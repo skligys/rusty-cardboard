@@ -16,28 +16,27 @@ use gl;
 use input;
 use input::EventType;
 use jni;
-use log;
 use sensor;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
 /// Logs the error to Android error logging and fails.
-macro_rules! a_fail(
-  ($msg: expr) => ({
-    log::e($msg);
-    panic!();
-  });
-  ($fmt: expr, $($arg:tt)*) => ({
-    log::e_f(format!($fmt, $($arg)*));
-    panic!();
-  });
+macro_rules! a_panic(
+  ($msg: expr) => (
+    panic!($msg);
+  );
+  ($fmt: expr, $($arg:tt)*) => (
+    panic!($fmt, $($arg)*);
+  );
 );
 
 /// Logs to Android info logging.
 macro_rules! a_info(
-  ($msg: expr) => ( log::i($msg); );
+  ($msg: expr) => (
+    println!($msg);
+  );
   ($fmt: expr, $($arg:tt)*) => (
-    log::i_f(format!($fmt, $($arg)*));
+    println!($fmt, $($arg)*);
   );
 );
 
@@ -46,7 +45,7 @@ macro_rules! gl_try(
   ($e: expr) => (
     match $e {
       Ok(e) => e,
-      Err(e) => a_fail!("{} failed: {:?}", stringify!($e), e),
+      Err(e) => a_panic!("{} failed: {:?}", stringify!($e), e),
     }
   )
 );
@@ -277,7 +276,7 @@ const FRAGMENT_SHADER: &'static str = "\
     fn new(jvm: &'a mut android_glue::ffi::JavaVM) -> PthreadJvmAttach<'a> {
       let res = jni::attach_current_thread_to_jvm(jvm);
       if res < 0 {
-        a_fail!("Failed to attach pthread to JVM, status: {}", res);
+        a_panic!("Failed to attach pthread to JVM, status: {}", res);
       }
       PthreadJvmAttach { jvm : jvm }
     }
@@ -288,7 +287,7 @@ const FRAGMENT_SHADER: &'static str = "\
     fn drop(&mut self) {
       let res = jni::detach_current_thread_from_jvm(self.jvm);
       if res < 0 {
-        a_fail!("Failed to detach pthread to JVM, status: {}", res);
+        a_panic!("Failed to detach pthread to JVM, status: {}", res);
       }
     }
   }
@@ -328,7 +327,7 @@ impl Engine {
         gl_try!(gl::viewport(0, 0, ec.width, ec.height));
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
-      None => a_fail!("self.egl_context should be present"),
+      None => a_panic!("self.egl_context should be present"),
     }
   }
 
@@ -339,11 +338,11 @@ impl Engine {
       let _jvm_attach = PthreadJvmAttach::new(self.jvm);
 
       asset_manager::load_asset(self.asset_manager, "atlas.png")
-        .unwrap_or_else(|i| a_fail!("asset_manager::load_asset() failed: {}", i))
+        .unwrap_or_else(|i| a_panic!("asset_manager::load_asset() failed: {}", i))
     };
 
     let image = png::load_png_from_memory(&vec)
-      .unwrap_or_else(|s| a_fail!("load_png_from_memory() failed: {}", s));
+      .unwrap_or_else(|s| a_panic!("load_png_from_memory() failed: {}", s));
 
     let pixels = match image.pixels {
       png::PixelsByColorType::RGBA8(v) => v,
@@ -354,7 +353,7 @@ impl Engine {
             png::PixelsByColorType::RGB8(_) => "RGB8",
             png::PixelsByColorType::RGBA8(_) => panic!("Should not happen"),
         };
-        a_fail!("Only RGBA8 image format supported, was: {}", color_type);
+        a_panic!("Only RGBA8 image format supported, was: {}", color_type);
       }
     };
 
@@ -533,7 +532,7 @@ fn enable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
 
   match sensor::enable_sensor(event_queue, sensor) {
     Ok(_) => (),
-    Err(e) => a_fail!("enable_sensor failed: {}", e),
+    Err(e) => a_panic!("enable_sensor failed: {}", e),
   };
 }
 
@@ -542,7 +541,7 @@ fn sensor_event_rate(event_queue: &mut android_glue::ffi::ASensorEventQueue,
 
   match sensor::set_event_rate(event_queue, sensor, 1000 * 1000 / events_per_second) {
     Ok(_) => (),
-    Err(e) => a_fail!("set_event_rate failed: {}", e),
+    Err(e) => a_panic!("set_event_rate failed: {}", e),
   };
 }
 
@@ -551,7 +550,7 @@ fn disable_sensor(event_queue: &mut android_glue::ffi::ASensorEventQueue,
 
   match sensor::disable_sensor(event_queue, sensor) {
     Ok(_) => (),
-    Err(e) => a_fail!("disable_sensor failed: {}", e),
+    Err(e) => a_panic!("disable_sensor failed: {}", e),
   };
 }
 
@@ -573,7 +572,7 @@ pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglC
   let mut configs = vec!(ptr::null());
   gl_try!(egl::choose_config(display, &attribs_config, &mut configs));
   if configs.len() == 0 {
-    a_fail!("choose_config() did not find any configurations");
+    a_panic!("choose_config() did not find any configurations");
   }
   let config = configs[0];
 
@@ -627,7 +626,7 @@ fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
   if !status {
     let info_log = gl_try!(gl::get_shader_info_log(shader));
     gl_try!(gl::delete_shader(shader));
-    a_fail!("Compiling shader {} failed: {}", shader_type, info_log);
+    a_panic!("Compiling shader {} failed: {}", shader_type, info_log);
   }
   shader
 }
@@ -646,7 +645,7 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
   if !status {
     let info_log = gl_try!(gl::get_program_info_log(program));
     gl_try!(gl::delete_program(program));
-    a_fail!("Linking program failed: {}", info_log);
+    a_panic!("Linking program failed: {}", info_log);
   }
   let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
   let position = gl_try!(gl::get_attrib_location(program, "a_Position"));

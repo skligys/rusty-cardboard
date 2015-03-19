@@ -4,20 +4,16 @@ use libc::{c_int, c_void, int32_t};
 use std::mem;
 use std::ptr;
 
-use log;
-
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
 /// Logs the error to Android error logging and fails.
-macro_rules! a_fail(
-  ($msg: expr) => ({
-    log::e($msg);
-    panic!();
-  });
-  ($fmt: expr, $($arg:tt)*) => ({
-    log::e_f(format!($fmt, $($arg)*));
-    panic!();
-  });
+macro_rules! a_panic(
+  ($msg: expr) => (
+    panic!($msg);
+  );
+  ($fmt: expr, $($arg:tt)*) => (
+    panic!($fmt, $($arg)*);
+  );
 );
 
 /// Get an unsafe pointer to the sensor manager.  Manager is a singleton.
@@ -126,7 +122,7 @@ pub fn get_event(queue: &mut android_glue::ffi::ASensorEventQueue) -> Result<and
   match res {
     1 => Ok(event),
     err if err <= 0 => Err(err),
-    n => a_fail!("ASensorEventQueue_getEvents returned a positive result but not 1: {}", n),
+    n => a_panic!("ASensorEventQueue_getEvents returned a positive result but not 1: {}", n),
   }
 }
 
@@ -183,6 +179,6 @@ pub fn poll_all(timeout_millis: i32) -> Result<PollResult, PollError> {
     android_glue::ffi::ALOOPER_POLL_TIMEOUT => Err(PollError::PollTimeout),
     android_glue::ffi::ALOOPER_POLL_ERROR => Err(PollError::PollError),
     id if id >= 0 => Ok(PollResult { id: id, fd: fd, events: events, data: data }),
-    err => a_fail!("Unknown error from ALooper_pollAll(): {}", err),
+    err => a_panic!("Unknown error from ALooper_pollAll(): {}", err),
   }
 }

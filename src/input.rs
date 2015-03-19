@@ -1,19 +1,15 @@
 extern crate android_glue;
 
-use log;
-
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
 /// Logs the error to Android error logging and fails.
-macro_rules! a_fail(
-  ($msg: expr) => ({
-    log::e($msg);
-    panic!();
-  });
-  ($fmt: expr, $($arg:tt)*) => ({
-    log::e_f(format!($fmt, $($arg)*));
-    panic!();
-  });
+macro_rules! a_panic(
+  ($msg: expr) => (
+    panic!($msg);
+  );
+  ($fmt: expr, $($arg:tt)*) => (
+    panic!($fmt, $($arg)*);
+  );
 );
 
 pub enum EventType {
@@ -29,7 +25,7 @@ pub fn get_event_type(event: *const android_glue::ffi::AInputEvent) -> EventType
   match res {
     android_glue::ffi::AINPUT_EVENT_TYPE_KEY => EventType::Key,
     android_glue::ffi::AINPUT_EVENT_TYPE_MOTION => EventType::Motion,
-    _ => a_fail!("Unknown event type: {}", res),
+    _ => a_panic!("Unknown event type: {}", res),
   }
 }
 
