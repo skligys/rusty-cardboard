@@ -27,7 +27,9 @@ http://web.archive.org/web/20141225095654/https://github.com/rust-lang/rust/wiki
     ```sh
     $ git clone https://github.com/skligys/rusty-cardboard.git
     $ cd rusty-cardboard
-    $ git submodule update
+    $ cd external/apk-builder
+    $ git checkout master
+    $ cd ../..
     ```
 
 ### Building
