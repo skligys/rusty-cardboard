@@ -7,7 +7,6 @@ use std::ptr;
 use std::str;
 
 use cgmath::Matrix4;
-use log;
 
 // TODO: Figure out how to put macros in a separate module and import when needed.
 
