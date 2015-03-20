@@ -81,10 +81,6 @@ impl Drop for EglContext {
 // Shared state for our app.
 // TODO: Find a way not to declare all fields public.
 pub struct Engine {
-//  pub jvm: &'static mut android_glue::ffi::JavaVM,
-//  pub asset_manager: &'static mut android_glue::ffi::AAssetManager,
-//  pub accelerometer_sensor: Option<&'static android_glue::ffi::ASensor>,
-//  pub sensor_event_queue: &'static mut android_glue::ffi::ASensorEventQueue,
   pub animating: bool,
   pub egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
