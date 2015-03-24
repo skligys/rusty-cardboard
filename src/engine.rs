@@ -11,16 +11,8 @@ use cgmath::{Matrix4, Point3, Vector3};
 use egl;
 use egl::{Context, Display, Surface};
 use gl;
-
-/// On error, logs the error and terminates.  On success, returns the result.
-macro_rules! gl_try(
-  ($e: expr) => (
-    match $e {
-      Ok(e) => e,
-      Err(e) => panic!("{} failed: {:?}", stringify!($e), e),
-    }
-  )
-);
+use mesh;
+use program::Program;
 
 // Saved state data.  Compatible with C.
 struct SavedState {
@@ -34,7 +26,7 @@ impl Default for SavedState {
 }
 
 // RAII managed EGL pointers.  Cleaned up automatically via Drop.
-struct EglContext {
+pub struct EglContext {
   display: Display,
   surface: Surface,
   context: Context,
@@ -55,24 +47,101 @@ impl Default for EglContext {
 }
 
 impl EglContext {
+  pub fn new(window: *mut android_glue::ffi::ANativeWindow) -> EglContext {
+    let display = egl::get_display(egl::DEFAULT_DISPLAY);
+    if let Err(e) = egl::initialize(display) {
+      panic!("Failed in egl::initialize(): {:?}", e);
+    }
+
+    // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
+    // at least 8 bits per color component compatible with OpenGL ES 2.0.  A very simplified
+    // selection process, where we pick the first EGLConfig that matches our criteria.
+    let config = {
+      let attribs_config = [
+        egl::RENDERABLE_TYPE, egl::OPENGL_ES2_BIT,
+        egl::BLUE_SIZE, 8,
+        egl::GREEN_SIZE, 8,
+        egl::RED_SIZE, 8,
+        egl::NONE
+      ];
+      let mut configs = vec!(ptr::null());
+      if let Err(e) = egl::choose_config(display, &attribs_config, &mut configs) {
+        panic!("Failed in egl::choose_config(): {:?}", e);
+      }
+      if configs.len() == 0 {
+        panic!("egl::choose_config() did not find any configurations");
+      }
+      configs[0]
+    };
+
+    // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
+    // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
+    // reconfigure the NativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
+    let format = match egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID) {
+      Ok(f) => f,
+      Err(e) => panic!("egl::get_config_attrib(NATIVE_VISUAL_ID) failed: {:?}", e),
+    };
+
+    unsafe {
+      android_glue::ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, format);
+    }
+
+    let surface = match egl::create_window_surface(display, config, window) {
+      Ok(s) => s,
+      Err(e) => panic!("egl::create_window_surface() failed: {:?}", e),
+    };
+
+    let context = {
+      let attribs_context = [
+        egl::CONTEXT_CLIENT_VERSION, 2,
+        egl::NONE
+      ];
+      match egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, &attribs_context) {
+        Ok(c) => c,
+        Err(e) => panic!("egl::create_context_with_attribs() failed: {:?}", e),
+      }
+    };
+
+    if let Err(e) = egl::make_current(display, surface, surface, context) {
+      panic!("Failed in egl::make_current(): {:?}", e);
+    }
+
+    let w = match egl::query_surface(display, surface, egl::WIDTH) {
+      Ok(w) => w,
+      Err(e) => panic!("egl::query_surface(WIDTH) failed: {:?}", e),
+    };
+    let h = match egl::query_surface(display, surface, egl::HEIGHT) {
+      Ok(w) => w,
+      Err(e) => panic!("egl::query_surface(HEIGHT) failed: {:?}", e),
+    };
+
+    EglContext {
+      display: display,
+      surface: surface,
+      context: context,
+      width: w,
+      height: h,
+    }
+  }
+
   fn swap_buffers(&self) {
-    gl_try!(egl::swap_buffers(self.display, self.surface));
+    let _ = egl::swap_buffers(self.display, self.surface);
   }
 }
 
 impl Drop for EglContext {
   fn drop(&mut self) {
     if self.display != egl::NO_DISPLAY {
-      gl_try!(egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT));
+      let _ = egl::make_current(self.display, egl::NO_SURFACE, egl::NO_SURFACE, egl::NO_CONTEXT);
       if self.context != egl::NO_CONTEXT {
-        gl_try!(egl::destroy_context(self.display, self.context));
+        let _ = egl::destroy_context(self.display, self.context);
         self.context = egl::NO_CONTEXT;
       }
       if self.surface != egl::NO_SURFACE {
-        gl_try!(egl::destroy_surface(self.display, self.surface));
+        let _ = egl::destroy_surface(self.display, self.surface);
         self.surface = egl::NO_SURFACE;
       }
-      gl_try!(egl::terminate(self.display));
+      let _ = egl::terminate(self.display);
       self.display = egl::NO_DISPLAY;
     }
   }
@@ -84,156 +153,12 @@ pub struct Engine {
   pub animating: bool,
   pub egl_context: Option<Box<EglContext>>,
   pub state: SavedState,
-  // GL bound variables.
-  pub mvp_matrix: gl::UnifLoc,
-  pub position: gl::AttribLoc,
-  pub texture_unit: gl::UnifLoc,
-  pub texture_coord: gl::AttribLoc,
+  pub program: Option<Program>,
   /// GL matrix
   pub view_projection_matrix: Matrix4<f32>,
   /// Texture atlas.
   pub texture: gl::Texture,
 }
-
-const NUMBERS_PER_VERTEX: i32 = 5;
-const BYTES_PER_F32: i32 = 4;
-const STRIDE: i32 = NUMBERS_PER_VERTEX * BYTES_PER_F32;
-
-// X, Y, Z,
-// S, T (note: T axis is going from top down)
-const VERTICES: [f32; 180] = [
-  // Front face.
-  -0.5, -0.5, 0.5,
-  0.5, 1.0,
-
-  0.5, -0.5, 0.5,
-  1.0, 1.0,
-
-  0.5, 0.5, 0.5,
-  1.0, 0.5,
-
-  0.5, 0.5, 0.5,
-  1.0, 0.5,
-
-  -0.5, 0.5, 0.5,
-  0.5, 0.5,
-
-  -0.5, -0.5, 0.5,
-  0.5, 1.0,
-
-  // Right face.
-  0.5, -0.5, 0.5,
-  0.5, 1.0,
-
-  0.5, -0.5, -0.5,
-  1.0, 1.0,
-
-  0.5, 0.5, -0.5,
-  1.0, 0.5,
-
-  0.5, 0.5, -0.5,
-  1.0, 0.5,
-
-  0.5, 0.5, 0.5,
-  0.5, 0.5,
-
-  0.5, -0.5, 0.5,
-  0.5, 1.0,
-
-  // Back face.
-  0.5, -0.5, -0.5,
-  0.5, 1.0,
-
-  -0.5, -0.5, -0.5,
-  1.0, 1.0,
-
-  -0.5, 0.5, -0.5,
-  1.0, 0.5,
-
-  -0.5, 0.5, -0.5,
-  1.0, 0.5,
-
-  0.5, 0.5, -0.5,
-  0.5, 0.5,
-
-  0.5, -0.5, -0.5,
-  0.5, 1.0,
-
-  // Left face.
-  -0.5, -0.5, -0.5,
-  0.5, 1.0,
-
-  -0.5, -0.5, 0.5,
-  1.0, 1.0,
-
-  -0.5, 0.5, 0.5,
-  1.0, 0.5,
-
-  -0.5, 0.5, 0.5,
-  1.0, 0.5,
-
-  -0.5, 0.5, -0.5,
-  0.5, 0.5,
-
-  -0.5, -0.5, -0.5,
-  0.5, 1.0,
-
-  // Top face.
-  -0.5, 0.5, 0.5,
-  0.0, 1.0,
-
-  0.5, 0.5, 0.5,
-  0.5, 1.0,
-
-  0.5, 0.5, -0.5,
-  0.5, 0.5,
-
-  0.5, 0.5, -0.5,
-  0.5, 0.5,
-
-  -0.5, 0.5, -0.5,
-  0.0, 0.5,
-
-  -0.5, 0.5, 0.5,
-  0.0, 1.0,
-
-  // Bottom face.
-  0.5, -0.5, 0.5,
-  0.0, 0.5,
-
-  -0.5, -0.5, 0.5,
-  0.5, 0.5,
-
-  -0.5, -0.5, -0.5,
-  0.5, 0.0,
-
-  -0.5, -0.5, -0.5,
-  0.5, 0.0,
-
-  0.5, -0.5, -0.5,
-  0.0, 0.0,
-
-  0.5, -0.5, 0.5,
-  0.0, 0.5,
-];
-
-const VERTEX_SHADER: &'static str = "\
-  uniform mat4 u_MVPMatrix;\n\
-  attribute vec4 a_Position;\n\
-  attribute vec2 a_TextureCoord;\n\
-  varying vec2 v_TextureCoord;\n\
-  void main() {\n\
-    v_TextureCoord = a_TextureCoord;\n\
-    gl_Position = u_MVPMatrix * a_Position;
-  }\n";
-
-const FRAGMENT_SHADER: &'static str = "\
-  precision mediump float;\n\
-  uniform sampler2D u_TextureUnit;\n\
-  varying vec2 v_TextureCoord;\n\
-  void main() {\n\
-    gl_FragColor = texture2D(u_TextureUnit, v_TextureCoord);\n\
-  }\n";
 
 impl Engine {
   /// Initialize the engine.
@@ -244,30 +169,27 @@ impl Engine {
     gl::clear_color(0.5, 0.69, 1.0, 1.0);
 
     // Enable reverse face culling and depth test.
-    gl_try!(gl::enable(gl::CULL_FACE));
-    gl_try!(gl::enable(gl::DEPTH_TEST));
+    gl::enable(gl::CULL_FACE);
+    gl::enable(gl::DEPTH_TEST);
 
-    let (mvp_matrix, position, texture_unit, texture_coord) = load_program(VERTEX_SHADER, FRAGMENT_SHADER);
-    self.mvp_matrix = mvp_matrix;
-    self.position = position;
-    self.texture_unit = texture_unit;
-    self.texture_coord = texture_coord;
+    match Program::new() {
+      Ok(p) => self.program = Some(p),
+      Err(e) => panic!("Program failed: {:?}", e),
+    }
 
     // Set up textures.
     self.texture = self.load_texture_atlas();
-    gl_try!(gl::active_texture(gl::TEXTURE0));
-    gl_try!(gl::bind_texture_2d(self.texture));
-    gl_try!(gl::uniform_int(self.texture_unit, 0));
-
-    // Set the vertex attributes for position and color.
-    gl_try!(gl::vertex_attrib_pointer_f32(self.position, 3, STRIDE, &VERTICES));
-    gl_try!(gl::enable_vertex_attrib_array(self.position));
-    gl_try!(gl::vertex_attrib_pointer_f32(self.texture_coord, 2, STRIDE, &VERTICES[3..]));
-    gl_try!(gl::enable_vertex_attrib_array(self.texture_coord));
+    gl::active_texture(gl::TEXTURE0);
+    gl::bind_texture_2d(self.texture);
+    match self.program {
+      Some(ref p) => gl::uniform_int(p.texture_unit, 0),
+      None => panic!("Missing program, should never happen"),
+    }
+    ;
 
     match self.egl_context {
       Some(ref ec) => {
-        gl_try!(gl::viewport(0, 0, ec.width, ec.height));
+        gl::viewport(0, 0, ec.width, ec.height);
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
       None => panic!("self.egl_context should be present"),
@@ -303,15 +225,15 @@ impl Engine {
       }
     };
 
-    let texture = gl_try!(gl::gen_texture());
-    gl_try!(gl::bind_texture_2d(texture));
-    gl_try!(gl::texture_2d_param(gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR));
-    gl_try!(gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR));
-    gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE));
-    gl_try!(gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE));
-    gl_try!(gl::texture_2d_image_rgba(image.width as i32, image.height as i32, &pixels));
-    gl_try!(gl::generate_mipmap_2d());
-    gl_try!(gl::bind_texture_2d(0));
+    let texture = gl::gen_texture();
+    gl::bind_texture_2d(texture);
+    gl::texture_2d_param(gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR);
+    gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+    gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE);
+    gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE);
+    gl::texture_2d_image_rgba(image.width as i32, image.height as i32, &pixels);
+    gl::generate_mipmap_2d();
+    gl::bind_texture_2d(0);
 
     texture
   }
@@ -325,16 +247,21 @@ impl Engine {
     match self.egl_context {
       None => return,  // No display.
       Some(ref egl_context) => {
-        gl_try!(gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT));
+        gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
 
-        // Create the model matrix based on the angle.
-        let model_matrix = from_angle_y(self.state.angle);
-        // Compute the composite mvp_matrix and send it to program.
-        let mvp_matrix = self.view_projection_matrix * model_matrix;
-        gl_try!(gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix));
+        match self.program {
+          Some(ref p) => {
+            // Create the model matrix based on the angle.
+            let model_matrix = from_angle_y(self.state.angle);
+            // Compute the composite mvp_matrix and send it to program.
+            let mvp_matrix = self.view_projection_matrix * model_matrix;
+            gl::uniform_matrix4_f32(p.mvp_matrix, &mvp_matrix);
+          },
+          None => panic!("Missing program, should never happen"),
+        }
 
         // Finally, draw the triangle.
-        gl_try!(gl::draw_arrays_triangles(VERTICES.len() as i32 / NUMBERS_PER_VERTEX));
+        gl::draw_arrays_triangles(mesh::triangle_count());
 
         egl_context.swap_buffers();
       }
@@ -359,7 +286,8 @@ impl Engine {
   /// Terminate the engine.
   pub fn term(&mut self) {
     self.animating = false;
-    self.egl_context = None;  // This closes the existing context via Drop.
+    self.program = None;  // Drop the program.
+    self.egl_context = None;  // Drop the context.
     println!("Renderer terminated");
   }
 
@@ -403,94 +331,4 @@ fn from_angle_y(degrees: f32) -> Matrix4<f32> {
                   0.0, 1.0, 0.0, 0.0,
                     s, 0.0,   c, 0.0,
                   0.0, 0.0, 0.0, 1.0)
-}
-
-pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglContext {
-  let display = egl::get_display(egl::DEFAULT_DISPLAY);
-
-  gl_try!(egl::initialize(display));
-
-  // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
-  // at least 8 bits per color component compatible with OpenGL ES 2.0.  A very simplified
-  // selection process, where we pick the first EGLConfig that matches our criteria.
-  let attribs_config = [
-    egl::RENDERABLE_TYPE, egl::OPENGL_ES2_BIT,
-    egl::BLUE_SIZE, 8,
-    egl::GREEN_SIZE, 8,
-    egl::RED_SIZE, 8,
-    egl::NONE
-  ];
-  let mut configs = vec!(ptr::null());
-  gl_try!(egl::choose_config(display, &attribs_config, &mut configs));
-  if configs.len() == 0 {
-    panic!("choose_config() did not find any configurations");
-  }
-  let config = configs[0];
-
-  // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
-  // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
-  // reconfigure the NativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
-  let format = gl_try!(egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID));
-
-  unsafe {
-    android_glue::ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, format);
-  }
-
-  let surface = gl_try!(egl::create_window_surface(display, config, window));
-
-  let attribs_context = [
-    egl::CONTEXT_CLIENT_VERSION, 2,
-    egl::NONE
-  ];
-  let context = gl_try!(egl::create_context_with_attribs(display, config, egl::NO_CONTEXT, &attribs_context));
-
-  gl_try!(egl::make_current(display, surface, surface, context));
-
-  let w = gl_try!(egl::query_surface(display, surface, egl::WIDTH));
-  let h = gl_try!(egl::query_surface(display, surface, egl::HEIGHT));
-
-  EglContext {
-    display: display,
-    surface: surface,
-    context: context,
-    width: w,
-    height: h,
-  }
-}
-
-fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
-  let shader = gl_try!(gl::create_shader(shader_type));
-  gl_try!(gl::shader_source(shader, shader_string));
-  gl_try!(gl::compile_shader(shader));
-  let status = gl_try!(gl::get_compile_status(shader));
-  if !status {
-    let info_log = gl_try!(gl::get_shader_info_log(shader));
-    gl_try!(gl::delete_shader(shader));
-    panic!("Compiling shader {} failed: {}", shader_type, info_log);
-  }
-  shader
-}
-
-fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
-  (gl::UnifLoc, gl::AttribLoc, gl::UnifLoc, gl::AttribLoc) {
-  let vertex_shader = compile_shader(vertex_shader_string, gl::VERTEX_SHADER);
-  let fragment_shader = compile_shader(fragment_shader_string, gl::FRAGMENT_SHADER);
-  let program = gl_try!(gl::create_program());
-  gl_try!(gl::attach_shader(program, vertex_shader));
-  gl_try!(gl::attach_shader(program, fragment_shader));
-  gl_try!(gl::bind_attrib_location(program, 0, "a_Position"));
-  gl_try!(gl::bind_attrib_location(program, 1, "a_TextureCoord"));
-  gl_try!(gl::link_program(program));
-  let status = gl_try!(gl::get_link_status(program));
-  if !status {
-    let info_log = gl_try!(gl::get_program_info_log(program));
-    gl_try!(gl::delete_program(program));
-    panic!("Linking program failed: {}", info_log);
-  }
-  let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
-  let position = gl_try!(gl::get_attrib_location(program, "a_Position"));
-  let texture_unit = gl_try!(gl::get_uniform_location(program, "u_TextureUnit"));
-  let texture_coord = gl_try!(gl::get_attrib_location(program, "a_TextureCoord"));
-  gl_try!(gl::use_program(program));
-  (mvp_matrix, position, texture_unit, texture_coord)
 }

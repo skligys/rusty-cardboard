@@ -1,4 +1,4 @@
-#![feature(start, std_misc, unsafe_destructor)]
+#![feature(core, start, std_misc, unsafe_destructor)]
 
 #[macro_use]
 extern crate android_glue;
@@ -13,21 +13,24 @@ use std::sync::mpsc::TryRecvError;
 
 use android_glue::Event;
 use cgmath::Matrix4;
+use engine::{EglContext, Engine};
 
 mod egl;
 mod engine;
 mod gl;
+mod mesh;
+mod program;
 
 #[cfg(target_os = "android")]
 android_start!(main);
 
 /// Initialize EGL context for the current display.
-fn init_display(engine: &mut engine::Engine) {
+fn init_display(engine: &mut Engine) {
   println!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let app = android_glue::get_app();
   let window = app.window as *mut android_glue::ffi::ANativeWindow;
-  let egl_context = Box::new(engine::create_egl_context(window));
+  let egl_context = Box::new(EglContext::new(window));
   engine.init(egl_context);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
   println!("Renderer initialized, {:.3}ms", elapsed_ms);
@@ -42,14 +45,11 @@ pub fn main() {
   println!("-------------------------------------------------------------------");
 
   // TODO: Implement restoring / saving state in android-rust-glue.
-  let mut engine = engine::Engine {
+  let mut engine = Engine {
     animating: false,
     egl_context: None,
     state: Default::default(),
-    mvp_matrix: Default::default(),
-    position: Default::default(),
-    texture_unit: Default::default(),
-    texture_coord: Default::default(),
+    program: None,
     view_projection_matrix: Matrix4::identity(),
     texture: Default::default(),
   };
