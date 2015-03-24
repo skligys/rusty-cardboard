@@ -8,18 +8,6 @@ use std::str;
 
 use cgmath::Matrix4;
 
-// TODO: Figure out how to put macros in a separate module and import when needed.
-
-/// Logs the error to Android error logging and fails.
-macro_rules! a_panic(
-  ($msg: expr) => (
-    panic!($msg);
-  );
-  ($fmt: expr, $($arg:tt)*) => (
-    panic!($fmt, $($arg)*);
-  );
-);
-
 pub type Enum = c_uint;
 
 // glGetString enums:
@@ -101,7 +89,7 @@ pub fn get_string(name: Enum) -> Result<String, Error> {
   let err = unsafe { glGetError() };
   match err {
     INVALID_ENUM => Err(Error::InvalidEnum),
-    _ => a_panic!("Unknown error from glGetString(): {}", err),
+    _ => panic!("Unknown error from glGetString(): {}", err),
   }
 }
 
@@ -119,7 +107,7 @@ pub fn enable(cap: Enum) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
-    _ => a_panic!("Unknown error from glEnable(): {}", err),
+    _ => panic!("Unknown error from glEnable(): {}", err),
   }
 }
 
@@ -132,7 +120,7 @@ pub fn disable(cap: Enum) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
-    _ => a_panic!("Unknown error from glDisable(): {}", err),
+    _ => panic!("Unknown error from glDisable(): {}", err),
   }
 }
 
@@ -150,7 +138,7 @@ pub fn clear(mask: Bitfield) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glClear(): {}", err),
+    _ => panic!("Unknown error from glClear(): {}", err),
   }
 }
 
@@ -170,7 +158,7 @@ pub fn create_shader(shader_type: Enum) -> Result<Shader, Error> {
     let err = unsafe { glGetError() };
     match err {
       INVALID_ENUM => Err(Error::InvalidEnum),
-      _ => a_panic!("Unknown error from glCreateShader(): {}", err),
+      _ => panic!("Unknown error from glCreateShader(): {}", err),
     }
   }
 }
@@ -186,7 +174,7 @@ pub fn shader_source(shader: Shader, string: &str) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glShaderSource(): {}", err),
+    _ => panic!("Unknown error from glShaderSource(): {}", err),
   }
 }
 
@@ -199,7 +187,7 @@ pub fn compile_shader(shader: Shader) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glCompileShader(): {}", err),
+    _ => panic!("Unknown error from glCompileShader(): {}", err),
   }
 }
 
@@ -230,7 +218,7 @@ pub fn get_shader_param(shader: Shader, param_name: Enum) -> Result<Int, Error> 
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glGetShaderiv(): {}", err),
+    _ => panic!("Unknown error from glGetShaderiv(): {}", err),
   }
 }
 
@@ -238,7 +226,7 @@ pub fn get_compile_status(shader: Shader) -> Result<bool, Error> {
   match get_shader_param(shader, COMPILE_STATUS) {
     Ok(TRUE) => Ok(true),
     Ok(FALSE) => Ok(false),
-    Ok(i) => a_panic!("Unknown result from get_shader_param(COMPILE_STATUS): {}", i),
+    Ok(i) => panic!("Unknown result from get_shader_param(COMPILE_STATUS): {}", i),
     Err(e) => Err(e),
   }
 }
@@ -255,7 +243,7 @@ pub fn get_shader_info_log(shader: Shader) -> Result<String, Error> {
         NO_ERROR => Ok(string_from_chars(&buff)),
         INVALID_VALUE => Err(Error::InvalidValue),
         INVALID_OPERATION => Err(Error::InvalidOperation),
-        _ => a_panic!("Unknown error from glGetShaderInfoLog(): {}", err),
+        _ => panic!("Unknown error from glGetShaderInfoLog(): {}", err),
       }
     },
     Err(e) => Err(e),
@@ -274,7 +262,7 @@ pub fn delete_shader(shader: Shader) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glDeleteShader(): {}", err),
+    _ => panic!("Unknown error from glDeleteShader(): {}", err),
   }
 }
 
@@ -288,7 +276,7 @@ pub fn create_program() -> Result<Program, Error> {
     Ok(res)
   } else {
     let err = unsafe { glGetError() };
-    a_panic!("Unknown error from glCreateProgram(): {}", err);
+    panic!("Unknown error from glCreateProgram(): {}", err);
   }
 }
 
@@ -301,7 +289,7 @@ pub fn attach_shader(program: Program, shader: Shader) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glAttachShader(): {}", err),
+    _ => panic!("Unknown error from glAttachShader(): {}", err),
   }
 }
 
@@ -315,7 +303,7 @@ pub fn bind_attrib_location(program: Program, index: u32, name: &str) -> Result<
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glBindAttribLocation(): {}", err),
+    _ => panic!("Unknown error from glBindAttribLocation(): {}", err),
   }
 }
 
@@ -328,7 +316,7 @@ pub fn link_program(program: Program) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glLinkProgram(): {}", err),
+    _ => panic!("Unknown error from glLinkProgram(): {}", err),
   }
 }
 
@@ -360,7 +348,7 @@ pub fn get_program_param(program: Program, param_name: Enum) -> Result<Int, Erro
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glGetProgramiv(): {}", err),
+    _ => panic!("Unknown error from glGetProgramiv(): {}", err),
   }
 }
 
@@ -368,7 +356,7 @@ pub fn get_link_status(program: Program) -> Result<bool, Error> {
   match get_program_param(program, LINK_STATUS) {
     Ok(TRUE) => Ok(true),
     Ok(FALSE) => Ok(false),
-    Ok(i) => a_panic!("Unknown result from get_program_param(LINK_STATUS): {}", i),
+    Ok(i) => panic!("Unknown result from get_program_param(LINK_STATUS): {}", i),
     Err(e) => Err(e),
   }
 }
@@ -385,7 +373,7 @@ pub fn get_program_info_log(program: Program) -> Result<String, Error> {
         NO_ERROR => Ok(string_from_chars(&buff)),
         INVALID_VALUE => Err(Error::InvalidValue),
         INVALID_OPERATION => Err(Error::InvalidOperation),
-        _ => a_panic!("Unknown error from glGetProgramInfoLog(): {}", err),
+        _ => panic!("Unknown error from glGetProgramInfoLog(): {}", err),
       }
     },
     Err(e) => Err(e),
@@ -400,7 +388,7 @@ pub fn delete_program(program: Program) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glDeleteProgram(): {}", err),
+    _ => panic!("Unknown error from glDeleteProgram(): {}", err),
   }
 }
 
@@ -418,7 +406,7 @@ pub fn get_uniform_location(program: Program, name: &str) -> Result<UnifLoc, Err
     match err {
       INVALID_VALUE => Err(Error::InvalidValue),
       INVALID_OPERATION => Err(Error::InvalidOperation),
-      _ => a_panic!("Unknown error from glGetUniformLocation(): {}", err),
+      _ => panic!("Unknown error from glGetUniformLocation(): {}", err),
     }
   }
 }
@@ -437,7 +425,7 @@ pub fn get_attrib_location(program: Program, name: &str) -> Result<AttribLoc, Er
     match err {
       INVALID_VALUE => Err(Error::InvalidValue),
       INVALID_OPERATION => Err(Error::InvalidOperation),
-      _ => a_panic!("Unknown error from glGetAttribLocation(): {}", err),
+      _ => panic!("Unknown error from glGetAttribLocation(): {}", err),
     }
   }
 }
@@ -451,7 +439,7 @@ pub fn use_program(program: Program) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glUseProgram(): {}", err),
+    _ => panic!("Unknown error from glUseProgram(): {}", err),
   }
 }
 
@@ -463,7 +451,7 @@ pub fn viewport(x: i32, y: i32, width: i32, height: i32) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glViewport(): {}", err),
+    _ => panic!("Unknown error from glViewport(): {}", err),
   }
 }
 
@@ -477,7 +465,7 @@ pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) -> Result<(
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glUniformMatrix4fv(): {}", err),
+    _ => panic!("Unknown error from glUniformMatrix4fv(): {}", err),
   }
 }
 
@@ -490,7 +478,7 @@ pub fn uniform_int(location: UnifLoc, value: Int) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glUniform1i(): {}", err),
+    _ => panic!("Unknown error from glUniform1i(): {}", err),
   }
 }
 
@@ -523,7 +511,7 @@ pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glVertexAttribPointer(): {}", err),
+    _ => panic!("Unknown error from glVertexAttribPointer(): {}", err),
   }
 }
 
@@ -535,7 +523,7 @@ pub fn enable_vertex_attrib_array(location: AttribLoc) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glEnableVertexAttribArray(): {}", err),
+    _ => panic!("Unknown error from glEnableVertexAttribArray(): {}", err),
   }
 }
 
@@ -552,7 +540,7 @@ pub fn draw_arrays_triangles(count: i32) -> Result<(), Error> {
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_FRAMEBUFFER_OPERATION => Err(Error::InvalidFramebufferOperation),
-    _ => a_panic!("Unknown error from glDrawArrays(): {}", err),
+    _ => panic!("Unknown error from glDrawArrays(): {}", err),
   }
 }
 
@@ -567,7 +555,7 @@ pub fn gen_texture() -> Result<Texture, Error> {
   match err {
     NO_ERROR => Ok(texture),
     INVALID_VALUE => Err(Error::InvalidValue),
-    _ => a_panic!("Unknown error from glGenTextures(): {}", err),
+    _ => panic!("Unknown error from glGenTextures(): {}", err),
   }
 }
 
@@ -582,7 +570,7 @@ pub fn bind_texture_2d(texture: Texture) -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glBindTexture(): {}", err),
+    _ => panic!("Unknown error from glBindTexture(): {}", err),
   }
 }
 
@@ -621,7 +609,7 @@ pub fn texture_2d_param(param_name: Enum, param_value: Int) -> Result<(), Error>
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
-    _ => a_panic!("Unknown error from glTexParameteri(): {}", err),
+    _ => panic!("Unknown error from glTexParameteri(): {}", err),
   }
 }
 
@@ -637,7 +625,7 @@ pub fn texture_2d_image_rgba(width: Int, height: Int, data: &[u8]) -> Result<(),
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_VALUE => Err(Error::InvalidValue),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glTexImage2D(): {}", err),
+    _ => panic!("Unknown error from glTexImage2D(): {}", err),
   }
 }
 
@@ -650,7 +638,7 @@ pub fn generate_mipmap_2d() -> Result<(), Error> {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
     INVALID_OPERATION => Err(Error::InvalidOperation),
-    _ => a_panic!("Unknown error from glGenerateMipmap(): {}", err),
+    _ => panic!("Unknown error from glGenerateMipmap(): {}", err),
   }
 }
 
@@ -665,7 +653,7 @@ pub fn active_texture(texture_unit: Enum) -> Result<(), Error> {
   match err {
     NO_ERROR => Ok(()),
     INVALID_ENUM => Err(Error::InvalidEnum),
-    _ => a_panic!("Unknown error from glActiveTexture(): {}", err),
+    _ => panic!("Unknown error from glActiveTexture(): {}", err),
   }
 }
 

@@ -18,41 +18,19 @@ mod egl;
 mod engine;
 mod gl;
 
-// TODO: Figure out how to put macros in a separate module and import when needed.
-
-/// Logs the error to Android error logging and fails.
-macro_rules! a_panic(
-  ($msg: expr) => (
-    panic!($msg);
-  );
-  ($fmt: expr, $($arg:tt)*) => (
-    panic!($fmt, $($arg)*);
-  );
-);
-
-/// Logs to Android info logging.
-macro_rules! a_info(
-  ($msg: expr) => (
-    println!($msg);
-  );
-  ($fmt: expr, $($arg:tt)*) => (
-    println!($fmt, $($arg)*);
-  );
-);
-
 #[cfg(target_os = "android")]
 android_start!(main);
 
 /// Initialize EGL context for the current display.
 fn init_display(engine: &mut engine::Engine) {
-  a_info!("Renderer initializing...");
+  println!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let app = android_glue::get_app();
   let window = app.window as *mut android_glue::ffi::ANativeWindow;
   let egl_context = Box::new(engine::create_egl_context(window));
   engine.init(egl_context);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
-  a_info!("Renderer initialized, {:.3}ms", elapsed_ms);
+  println!("Renderer initialized, {:.3}ms", elapsed_ms);
 }
 
 /**
@@ -61,7 +39,7 @@ fn init_display(engine: &mut engine::Engine) {
  * things.
  */
 pub fn main() {
-  a_info!("-------------------------------------------------------------------");
+  println!("-------------------------------------------------------------------");
 
   // TODO: Implement restoring / saving state in android-rust-glue.
   let mut engine = engine::Engine {
@@ -92,7 +70,7 @@ pub fn main() {
       },
       Err(TryRecvError::Empty) => (),
       Err(TryRecvError::Disconnected) => {
-        a_panic!("----- Failed to get next event, channel disconnected")
+        panic!("----- Failed to get next event, channel disconnected")
       },
     }
     engine.update_draw();

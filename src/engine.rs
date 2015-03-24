@@ -12,34 +12,12 @@ use egl;
 use egl::{Context, Display, Surface};
 use gl;
 
-// TODO: Figure out how to put macros in a separate module and import when needed.
-
-/// Logs the error to Android error logging and fails.
-macro_rules! a_panic(
-  ($msg: expr) => (
-    panic!($msg);
-  );
-  ($fmt: expr, $($arg:tt)*) => (
-    panic!($fmt, $($arg)*);
-  );
-);
-
-/// Logs to Android info logging.
-macro_rules! a_info(
-  ($msg: expr) => (
-    println!($msg);
-  );
-  ($fmt: expr, $($arg:tt)*) => (
-    println!($fmt, $($arg)*);
-  );
-);
-
 /// On error, logs the error and terminates.  On success, returns the result.
 macro_rules! gl_try(
   ($e: expr) => (
     match $e {
       Ok(e) => e,
-      Err(e) => a_panic!("{} failed: {:?}", stringify!($e), e),
+      Err(e) => panic!("{} failed: {:?}", stringify!($e), e),
     }
   )
 );
@@ -296,7 +274,7 @@ impl Engine {
         gl_try!(gl::viewport(0, 0, ec.width, ec.height));
         self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
       },
-      None => a_panic!("self.egl_context should be present"),
+      None => panic!("self.egl_context should be present"),
     }
   }
 
@@ -309,12 +287,12 @@ impl Engine {
           AssetError::AssetMissing => "asset missing",
           AssetError::EmptyBuffer => "couldn't read asset",
         };
-        a_panic!("Loading atlas.png failed: {}", mess)
+        panic!("Loading atlas.png failed: {}", mess)
       },
     };
 
     let image = png::load_png_from_memory(&vec)
-      .unwrap_or_else(|s| a_panic!("load_png_from_memory() failed: {}", s));
+      .unwrap_or_else(|s| panic!("load_png_from_memory() failed: {}", s));
 
     let pixels = match image.pixels {
       png::PixelsByColorType::RGBA8(v) => v,
@@ -325,7 +303,7 @@ impl Engine {
             png::PixelsByColorType::RGB8(_) => "RGB8",
             png::PixelsByColorType::RGBA8(_) => panic!("Should not happen"),
         };
-        a_panic!("Only RGBA8 image format supported, was: {}", color_type);
+        panic!("Only RGBA8 image format supported, was: {}", color_type);
       }
     };
 
@@ -386,7 +364,7 @@ impl Engine {
   pub fn term(&mut self) {
     self.animating = false;
     self.egl_context = None;  // This closes the existing context via Drop.
-    a_info!("Renderer terminated");
+    println!("Renderer terminated");
   }
 
   /// Called when window gains input focus.
@@ -449,7 +427,7 @@ pub fn create_egl_context(window: *mut android_glue::ffi::ANativeWindow) -> EglC
   let mut configs = vec!(ptr::null());
   gl_try!(egl::choose_config(display, &attribs_config, &mut configs));
   if configs.len() == 0 {
-    a_panic!("choose_config() did not find any configurations");
+    panic!("choose_config() did not find any configurations");
   }
   let config = configs[0];
 
@@ -492,7 +470,7 @@ fn compile_shader(shader_string: &str, shader_type: gl::Enum) -> gl::Shader {
   if !status {
     let info_log = gl_try!(gl::get_shader_info_log(shader));
     gl_try!(gl::delete_shader(shader));
-    a_panic!("Compiling shader {} failed: {}", shader_type, info_log);
+    panic!("Compiling shader {} failed: {}", shader_type, info_log);
   }
   shader
 }
@@ -511,7 +489,7 @@ fn load_program(vertex_shader_string: &str, fragment_shader_string: &str) ->
   if !status {
     let info_log = gl_try!(gl::get_program_info_log(program));
     gl_try!(gl::delete_program(program));
-    a_panic!("Linking program failed: {}", info_log);
+    panic!("Linking program failed: {}", info_log);
   }
   let mvp_matrix = gl_try!(gl::get_uniform_location(program, "u_MVPMatrix"));
   let position = gl_try!(gl::get_attrib_location(program, "a_Position"));
