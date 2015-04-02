@@ -9,7 +9,7 @@ use std::vec::Vec;
 pub type Display = *const c_void;
 pub const NO_DISPLAY: Display = 0 as Display;
 
-type NativeDisplayType = *const c_void;
+pub type NativeDisplayType = *const c_void;
 pub const DEFAULT_DISPLAY: NativeDisplayType = 0 as NativeDisplayType;
 
 pub type Surface = *const c_void;
@@ -35,7 +35,7 @@ pub const CONTEXT_CLIENT_VERSION: Int = 0x3098;
 pub const HEIGHT: Int = 0x3056;
 pub const WIDTH: Int = 0x3057;
 
-type Int = i32;
+pub type Int = i32;
 
 // Error codes.
 type Boolean = c_uint;
@@ -65,7 +65,7 @@ pub fn get_display(display_id: NativeDisplayType) -> Display {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-enum Error {
+pub enum Error {
   NoSurface,
   NotInitialized,
   BadAccess,

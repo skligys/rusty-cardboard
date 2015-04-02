@@ -1,4 +1,4 @@
-#![feature(core, start, std_misc, unsafe_destructor)]
+#![feature(start, std_misc, unsafe_destructor)]
 
 #[macro_use]
 extern crate android_glue;

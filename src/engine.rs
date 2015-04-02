@@ -15,7 +15,7 @@ use mesh;
 use program::Program;
 
 // Saved state data.  Compatible with C.
-struct SavedState {
+pub struct SavedState {
   angle: f32,  // in degrees.
 }
 

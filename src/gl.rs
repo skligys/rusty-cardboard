@@ -53,12 +53,12 @@ const OUT_OF_MEMORY: Enum = 0x0505;
 const INVALID_FRAMEBUFFER_OPERATION: Enum = 0x0506;
 
 type UByte = uint8_t;
-type Clampf = c_float;
-type Bitfield = c_uint;
+pub type Clampf = c_float;
+pub type Bitfield = c_uint;
 type UInt = c_uint;
 type SizeI = c_int;
 type Char = c_char;
-type Int = c_int;
+pub type Int = c_int;
 type Boolean = c_uchar;
 type Float = c_float;
 type Void = c_void;
@@ -71,7 +71,7 @@ pub const COLOR_BUFFER_BIT: Enum = 0x00004000;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-enum Error {
+pub enum Error {
   NoError,
   InvalidEnum,
   InvalidValue,
