@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 fn main() {
     let target = env::var("TARGET").unwrap();
-    let dest = PathBuf::new(&env::var("OUT_DIR").unwrap());
+    let dest = PathBuf::from(&env::var("OUT_DIR").unwrap());
 
     if target.contains("windows") {
         let mut file = File::create(&dest.join("wgl_bindings.rs")).unwrap();
