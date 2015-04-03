@@ -1,30 +1,43 @@
 #![feature(start, std_misc, unsafe_destructor)]
 
 #[macro_use]
+#[cfg(target_os = "android")]
 extern crate android_glue;
 
 extern crate cgmath;
 extern crate libc;
 extern crate time;
 
+#[cfg(target_os = "android")]
 use std::default::Default;
+#[cfg(target_os = "android")]
 use std::sync::mpsc;
+#[cfg(target_os = "android")]
 use std::sync::mpsc::TryRecvError;
 
+#[cfg(target_os = "android")]
 use android_glue::Event;
+#[cfg(target_os = "android")]
 use cgmath::Matrix4;
+#[cfg(target_os = "android")]
 use engine::{EglContext, Engine};
 
+#[cfg(target_os = "android")]
 mod egl;
+#[cfg(target_os = "android")]
 mod engine;
+#[cfg(target_os = "android")]
 mod gl;
+#[cfg(target_os = "android")]
 mod mesh;
+#[cfg(target_os = "android")]
 mod program;
 
 #[cfg(target_os = "android")]
 android_start!(main);
 
 /// Initialize EGL context for the current display.
+#[cfg(target_os = "android")]
 fn init_display(engine: &mut Engine) {
   println!("Renderer initializing...");
   let start_ns = time::precise_time_ns();
@@ -41,6 +54,7 @@ fn init_display(engine: &mut Engine) {
  * It runs in its own thread, with its own event loop for receiving input events and doing other
  * things.
  */
+#[cfg(target_os = "android")]
 pub fn main() {
   println!("-------------------------------------------------------------------");
 
@@ -81,4 +95,9 @@ pub fn main() {
       break 'event;
     }
   }
+}
+
+#[cfg(target_os = "linux")]
+pub fn main() {
+  println!("-------------------------------------------------------------------");
 }
