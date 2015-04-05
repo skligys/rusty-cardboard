@@ -1,4 +1,4 @@
-use libc::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong, c_void};
 use std::ffi::CString;
 use std::mem;
 use std::ptr;
@@ -62,10 +62,12 @@ pub struct XWindow {
   wm_delete_window: Atom,
   input_method: XIM,
   input_context: XIC,
+  context: GLXContext,
 }
 
 impl Drop for XWindow {
   fn drop(&mut self) {
+    destroy_context(self.display, self.context);
     destroy_ic(self.input_context);
     close_im(self.input_method);
     destroy_window(self.display, self.window);
@@ -147,7 +149,17 @@ impl XWindow {
     // Make keyboard input repeat detectable.
     set_detectable_auto_repeat(display);
 
-    // Create GL context...
+    // Create GL context.
+    let context = {
+      let context_attributes = vec![
+        GLX_CONTEXT_MAJOR_VERSION, 1,
+        GLX_CONTEXT_MINOR_VERSION, 4,
+        // TODO: Only for debug build:
+        GLX_EXTRA_CONTEXT_FLAGS_ARB, GLX_EXTRA_CONTEXT_DEBUG_BIT_ARB,
+        0,
+      ];
+      create_context_attribs_arb(display, config, ptr::null(), true, &context_attributes)
+    };
 
     XWindow {
       display: display,
@@ -156,6 +168,7 @@ impl XWindow {
       wm_delete_window: wm_delete_window,
       input_method: input_method,
       input_context: input_context,
+      context: context,
     }
   }
 }
@@ -388,6 +401,48 @@ fn set_detectable_auto_repeat(display: *mut Display) {
   }
 }
 
+fn get_proc_address(proc_name: &str) -> GLXextFuncPtr {
+  let c_proc_name = CString::new(proc_name).unwrap();
+  let maybe_address = unsafe {
+    glXGetProcAddress(c_proc_name.as_ptr() as *const u8)
+  };
+  match maybe_address {
+    Some(p) => p,
+    None => panic!("glXGetProcAddress({}) failed", proc_name),
+  }
+}
+
+fn create_context_attribs_arb(display: *mut Display, config: GLXFBConfig, share_context: GLXContext,
+  direct: bool, attrib_list: &[c_int]) -> GLXContext {
+
+  // NOTE: No caching, OK to use if only called once.
+  let create_context_attribs_arb_fn = get_proc_address("glXCreateContextAttribsARB");
+  type CreateContextAttribsArbFn =
+    extern "system" fn(*mut Display, GLXFBConfig, GLXContext, Bool, *const c_int) -> GLXContext;
+  let create_context_attribs_arb_fn = unsafe {
+    mem::transmute::<_, CreateContextAttribsArbFn>(create_context_attribs_arb_fn)
+  };
+
+  let c_direct = if direct { 1 } else { 0 };
+  let context = unsafe {
+    create_context_attribs_arb_fn(display, config, share_context, c_direct, attrib_list.as_ptr())
+  };
+  if context.is_null() {
+    panic!("glXCreateContextAttribsARB() failed");
+  }
+  context
+}
+
+fn destroy_context(display: *mut Display, context: GLXContext) {
+  unsafe { glXDestroyContext(display, context); }
+}
+
+
+const GLX_CONTEXT_MAJOR_VERSION: c_int = 0x2091;
+const GLX_CONTEXT_MINOR_VERSION: c_int = 0x2092;
+const GLX_EXTRA_CONTEXT_FLAGS_ARB: c_int = 0x2094;
+const GLX_EXTRA_CONTEXT_DEBUG_BIT_ARB: c_int = 0x00000001;
+
 // FFI functions.
 #[repr(C)]
 struct XSetWindowAttributes {
@@ -473,11 +528,16 @@ struct XVisualInfo {
   bits_per_rgb: c_int,
 }
 
+type GLubyte = c_uchar;
 type GLXFBConfig = *const c_void;
+type GLXContext = *const c_void;
+type GLXextFuncPtr = extern "system" fn();
 
 #[link(name = "GL")]
 extern "C" {
   fn glXChooseFBConfig(display: *mut Display, screen_id: c_int, attrib_list: *const c_int, num_elements: *mut c_int) -> *mut GLXFBConfig;
+  fn glXDestroyContext(display: *mut Display, context: GLXContext);
   fn glXGetFBConfigAttrib(display: *mut Display, config: GLXFBConfig, attribute: c_int, value: *mut c_int) -> c_int;
+  fn glXGetProcAddress(proc_name: *const GLubyte) -> Option<GLXextFuncPtr>;
   fn glXGetVisualFromFBConfig(display: *mut Display, config: GLXFBConfig) -> *mut XVisualInfo;
 }
