@@ -475,8 +475,49 @@ pub fn active_texture(texture_unit: Enum) {
   }
 }
 
+#[cfg(target_os = "android")]
 #[link(name = "GLESv2")]
-extern {
+extern "C" {
+  fn glGetString(name: Enum) -> *const UByte;
+  fn glGetError() -> Enum;
+  fn glEnable(cap: Enum);
+  fn glDisable(cap: Enum);
+  fn glClearColor(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf);
+  fn glClear(mask: Bitfield);
+  fn glCreateShader(shader_type: Enum) -> UInt;
+  fn glShaderSource(shader: UInt, count: SizeI, strings: *const *const Char, lengths: *const Int);
+  fn glCompileShader(shader: UInt);
+  fn glGetShaderiv(shader: UInt, param_name: Enum, out_params: *mut Int);
+  fn glGetShaderInfoLog(shader: UInt, buffer_size: SizeI, out_length: *mut SizeI, out_log: *mut Char);
+  fn glDeleteShader(shader: UInt);
+  fn glCreateProgram() -> UInt;
+  fn glAttachShader(program: UInt, shader: UInt);
+  fn glDetachShader(program: UInt, shader: UInt);
+  fn glBindAttribLocation(program: UInt, index: UInt, name: *const Char);
+  fn glLinkProgram(program: UInt);
+  fn glGetProgramiv(program: UInt, param_name: Enum, out_params: *mut Int);
+  fn glGetProgramInfoLog(program: UInt, buffer_size: SizeI, out_length: *mut SizeI, out_log: *mut Char);
+  fn glDeleteProgram(program: UInt);
+  fn glGetUniformLocation(program: UInt, name: *const Char) -> Int;
+  fn glGetAttribLocation(program: UInt, name: *const Char) -> Int;
+  fn glUseProgram(program: UInt);
+  fn glViewport(x: Int, y: Int, width: SizeI, height: SizeI);
+  fn glUniformMatrix4fv(location: Int, count: SizeI, transpose: Boolean, value: *const Float);
+  fn glUniform1i(location: Int, value: Int);
+  fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
+  fn glEnableVertexAttribArray(index: UInt);
+  fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
+  fn glGenTextures(count: SizeI, textures: *mut UInt);
+  fn glBindTexture(target: Enum, texture: UInt);
+  fn glTexParameteri(target: Enum, param_name: Enum, param_value: Int);
+  fn glTexImage2D(target: Enum, level: Int, internal_format: Int, width: SizeI, height: SizeI, border: Int, format: Enum, data_type: Enum, data: *const Void);
+  fn glGenerateMipmap(target: Enum);
+  fn glActiveTexture(texture_unit: Enum);
+}
+
+#[cfg(target_os = "linux")]
+#[link(name = "GL")]
+extern "C" {
   fn glGetString(name: Enum) -> *const UByte;
   fn glGetError() -> Enum;
   fn glEnable(cap: Enum);

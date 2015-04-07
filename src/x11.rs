@@ -171,6 +171,21 @@ impl XWindow {
       context: context,
     }
   }
+
+  pub fn make_current(&self) {
+    let rc = unsafe { glXMakeCurrent(self.display, self.window, self.context) };
+    if rc == 0 {
+      panic!("glXMakeCurrent() failed");
+    }
+  }
+
+  pub fn swap_buffers(&self) {
+    unsafe { glXSwapBuffers(self.display, self.window); }
+  }
+
+  pub fn flush(&self) {
+    flush(self.display);
+  }
 }
 
 // Wrapper functions for FFI.
@@ -424,9 +439,8 @@ fn create_context_attribs_arb(display: *mut Display, config: GLXFBConfig, share_
   };
 
   let c_direct = if direct { 1 } else { 0 };
-  let context = unsafe {
-    create_context_attribs_arb_fn(display, config, share_context, c_direct, attrib_list.as_ptr())
-  };
+  let context =
+    create_context_attribs_arb_fn(display, config, share_context, c_direct, attrib_list.as_ptr());
   if context.is_null() {
     panic!("glXCreateContextAttribsARB() failed");
   }
@@ -532,6 +546,7 @@ type GLubyte = c_uchar;
 type GLXFBConfig = *const c_void;
 type GLXContext = *const c_void;
 type GLXextFuncPtr = extern "system" fn();
+type GLXDrawable = XID;
 
 #[link(name = "GL")]
 extern "C" {
@@ -540,4 +555,6 @@ extern "C" {
   fn glXGetFBConfigAttrib(display: *mut Display, config: GLXFBConfig, attribute: c_int, value: *mut c_int) -> c_int;
   fn glXGetProcAddress(proc_name: *const GLubyte) -> Option<GLXextFuncPtr>;
   fn glXGetVisualFromFBConfig(display: *mut Display, config: GLXFBConfig) -> *mut XVisualInfo;
+  fn glXMakeCurrent(display: *mut Display, drawable: GLXDrawable, context: GLXContext) -> Bool;
+  fn glXSwapBuffers(display: *mut Display, drawable: GLXDrawable);
 }

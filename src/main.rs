@@ -19,8 +19,6 @@ use std::sync::mpsc;
 #[cfg(target_os = "android")]
 use std::sync::mpsc::TryRecvError;
 #[cfg(target_os = "linux")]
-use std::time::Duration;
-#[cfg(target_os = "linux")]
 use std::thread;
 
 #[cfg(target_os = "android")]
@@ -29,12 +27,13 @@ use android_glue::Event;
 use cgmath::Matrix4;
 #[cfg(target_os = "android")]
 use engine::{EglContext, Engine};
+#[cfg(target_os = "linux")]
+use x11::XWindow;
 
 #[cfg(target_os = "android")]
 mod egl;
 #[cfg(target_os = "android")]
 mod engine;
-#[cfg(target_os = "android")]
 mod gl;
 #[cfg(target_os = "android")]
 mod mesh;
@@ -110,6 +109,21 @@ pub fn main() {
 #[cfg(target_os = "linux")]
 pub fn main() {
   println!("-------------------------------------------------------------------");
-  let _window = x11::XWindow::new("Rusty Cardboard");
-  thread::sleep(Duration::seconds(3));
+  let window = XWindow::new("Rusty Cardboard");
+  window.make_current();
+
+  loop {
+    // Set the background clear color to sky blue.
+    gl::clear_color(0.5, 0.69, 1.0, 1.0);
+
+    // Enable reverse face culling and depth test.
+    gl::enable(gl::CULL_FACE);
+    gl::enable(gl::DEPTH_TEST);
+    gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
+
+    window.swap_buffers();
+    window.flush();
+
+    thread::sleep_ms(1);
+  }
 }
