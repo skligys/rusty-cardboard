@@ -1,4 +1,4 @@
-#![feature(collections, start, std_misc, thread_sleep, unsafe_destructor)]
+#![feature(collections, start, unsafe_destructor)]
 
 #[macro_use]
 #[cfg(target_os = "android")]
@@ -18,8 +18,6 @@ use std::default::Default;
 use std::sync::mpsc;
 #[cfg(target_os = "android")]
 use std::sync::mpsc::TryRecvError;
-#[cfg(target_os = "linux")]
-use std::thread;
 
 #[cfg(target_os = "android")]
 use android_glue::Event;
@@ -28,7 +26,7 @@ use cgmath::Matrix4;
 #[cfg(target_os = "android")]
 use engine::{EglContext, Engine};
 #[cfg(target_os = "linux")]
-use x11::XWindow;
+use x11::{Event, XWindow};
 
 #[cfg(target_os = "android")]
 mod egl;
@@ -112,7 +110,7 @@ pub fn main() {
   let window = XWindow::new("Rusty Cardboard");
   window.make_current();
 
-  loop {
+  while !window.is_closed() {
     // Set the background clear color to sky blue.
     gl::clear_color(0.5, 0.69, 1.0, 1.0);
 
@@ -120,10 +118,15 @@ pub fn main() {
     gl::enable(gl::CULL_FACE);
     gl::enable(gl::DEPTH_TEST);
     gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
-
-    window.swap_buffers();
     window.flush();
 
-    thread::sleep_ms(1);
+    window.swap_buffers();
+
+    for e in window.poll_events() {
+      match e {
+        Event::MouseMoved(_) => (),  // too much spam
+        e => println!("{:?}", e),
+      }
+    }
   }
 }

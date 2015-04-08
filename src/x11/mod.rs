@@ -1,8 +1,16 @@
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong, c_void};
+use std::cell::Cell;
+use std::collections::VecDeque;
 use std::ffi::CString;
 use std::mem;
 use std::ptr;
+use std::str;
 use std::sync::{Mutex, Once, ONCE_INIT};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use x11::key::{ElementState, ScanCode, VirtualKeyCode};
+
+mod key;
 
 type Atom = c_ulong;
 type Bool = c_int;
@@ -11,8 +19,12 @@ type Status = c_int;
 type XID = c_ulong;
 type Colormap = XID;
 type Cursor = XID;
+type KeySym = XID;
 type Pixmap = XID;
 type Window = XID;
+
+type KeyCode = c_ulong;
+type Time = c_ulong;
 
 type XIM = *mut ();
 type XrmDatabase = *const ();
@@ -63,6 +75,10 @@ pub struct XWindow {
   input_method: XIM,
   input_context: XIC,
   context: GLXContext,
+  is_closed: AtomicBool,
+  current_size: Cell<(c_int, c_int)>,
+  /// Events that have been retreived from XLib but not dispatched via iterators yet.
+  pending_events: Mutex<VecDeque<Event>>,
 }
 
 impl Drop for XWindow {
@@ -113,7 +129,8 @@ impl XWindow {
         let mut swa: XSetWindowAttributes = unsafe { mem::zeroed() };
         swa.colormap = color_map;
         swa.event_mask = EXPOSURE_MASK | STRUCTURE_NOTIFY_MASK | VISIBILITY_CHANGE_MASK | KEY_PRESS_MASK |
-          POINTER_MOTION_MASK | KEY_RELEASE_MASK | BUTTON_PRESS_MASK | BUTTON_RELEASE_MASK | KEYMAP_STATE_MASK;
+          POINTER_MOTION_MASK | KEY_RELEASE_MASK | BUTTON_PRESS_MASK | BUTTON_RELEASE_MASK |
+          KEYMAP_STATE_MASK | FOCUS_CHANGE_MASK;
         swa.border_pixel = 0;
         swa.override_redirect = 0;
         swa
@@ -169,6 +186,9 @@ impl XWindow {
       input_method: input_method,
       input_context: input_context,
       context: context,
+      is_closed: AtomicBool::new(false),
+      current_size: Cell::new((0, 0)),
+      pending_events: Mutex::new(VecDeque::new()),
     }
   }
 
@@ -179,12 +199,28 @@ impl XWindow {
     }
   }
 
-  pub fn swap_buffers(&self) {
-    unsafe { glXSwapBuffers(self.display, self.window); }
+  pub fn is_closed(&self) -> bool {
+    self.is_closed.load(Ordering::Relaxed)
   }
 
   pub fn flush(&self) {
     flush(self.display);
+  }
+
+  pub fn swap_buffers(&self) {
+    unsafe { glXSwapBuffers(self.display, self.window); }
+  }
+
+  pub fn wait_events(&self) -> WaitEventsIterator {
+    WaitEventsIterator {
+      window: self
+    }
+  }
+
+  pub fn poll_events(&self) -> PollEventsIterator {
+    PollEventsIterator {
+      window: self
+    }
   }
 }
 
@@ -310,9 +346,9 @@ fn default_root_window(display: *mut Display) -> Window {
 
 const ALLOC_NONE: c_int = 0;
 
-fn create_color_map(display: *mut Display, w: Window, visual: *mut Visual, alloc: c_int) -> Colormap {
+fn create_color_map(display: *mut Display, window: Window, visual: *mut Visual, alloc: c_int) -> Colormap {
   unsafe {
-    XCreateColormap(display, w, visual, alloc)
+    XCreateColormap(display, window, visual, alloc)
   }
 }
 
@@ -324,18 +360,18 @@ fn create_window(display: *mut Display, parent: Window, x: c_int, y: c_int, widt
   }
 }
 
-fn map_raised(display: *mut Display, w: Window) {
-  unsafe { XMapRaised(display, w); };
+fn map_raised(display: *mut Display, window: Window) {
+  unsafe { XMapRaised(display, window); };
 }
 
 fn flush(display: *mut Display) {
   unsafe { XFlush(display); };
 }
 
-fn store_name(display: *mut Display, w: Window, name: &str) {
+fn store_name(display: *mut Display, window: Window, name: &str) {
   let c_name = CString::new(name).unwrap();
   unsafe {
-    XStoreName(display, w, c_name.as_ptr());
+    XStoreName(display, window, c_name.as_ptr());
   }
 }
 
@@ -351,10 +387,10 @@ fn intern_atom(display: *mut Display, atom_name: &str, only_if_exists: bool) -> 
   atom
 }
 
-fn set_wm_protocol(display: *mut Display, w: Window, protocol: Atom) {
+fn set_wm_protocol(display: *mut Display, window: Window, protocol: Atom) {
   let mut protocol_mut = protocol;
   let status = unsafe {
-    XSetWMProtocols(display, w, &mut protocol_mut, 1)
+    XSetWMProtocols(display, window, &mut protocol_mut, 1)
   };
   if status == 0 {
     panic!("XSetWMProtocols() failed");
@@ -451,6 +487,247 @@ fn destroy_context(display: *mut Display, context: GLXContext) {
   unsafe { glXDestroyContext(display, context); }
 }
 
+fn peek_event(display: *mut Display, event: *mut XEvent) {
+  unsafe { XPeekEvent(display, event) }
+}
+
+#[derive(Clone, Debug, Copy)]
+pub enum Event {
+  /// The size of the window has changed.
+  Resized(u32, u32),
+
+  /// The position of the window has changed.
+  Moved(i32, i32),
+
+  /// The window has been closed.
+  Closed,
+
+  /// The window received a unicode character.
+  ReceivedCharacter(char),
+
+  /// The window gained or lost focus.
+  ///
+  /// The parameter is true if the window has gained focus, and false if it has lost focus.
+  Focused(bool),
+
+  /// An event from the keyboard has been received.
+  KeyboardInput(ElementState, ScanCode, Option<VirtualKeyCode>),
+
+  /// The cursor has moved on the window.
+  ///
+  /// The parameter are the (x,y) coords in pixels relative to the top-left corner of the window.
+  MouseMoved((i32, i32)),
+
+  /// A positive value indicates that the wheel was rotated forward, away from the user;
+  ///  a negative value indicates that the wheel was rotated backward, toward the user.
+  MouseWheel(i32),
+
+  /// An event from the mouse has been received.
+  MouseInput(ElementState, MouseButton),
+
+  /// The event loop was woken up by another thread.
+  Awakened,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum MouseButton {
+  Left,
+  Right,
+  Middle,
+  Other(u8),
+}
+
+pub struct WaitEventsIterator<'a> {
+  window: &'a XWindow,
+}
+
+impl<'a> Iterator for WaitEventsIterator<'a> {
+  type Item = Event;
+
+  fn next(&mut self) -> Option<Event> {
+    loop {
+      if self.window.is_closed() {
+        return None;
+      }
+
+      // This will block until an event arrives, but will not remove it from the queue.
+      let mut x_event = unsafe { mem::uninitialized() };
+      peek_event(self.window.display, &mut x_event);
+
+      // Call poll_events() to get the event from the queue.
+      if let Some(ev) = self.window.poll_events().next() {
+        return Some(ev);
+      }
+    }
+  }
+}
+
+pub struct PollEventsIterator<'a> {
+  window: &'a XWindow,
+}
+
+impl<'a> Iterator for PollEventsIterator<'a> {
+  type Item = Event;
+
+  fn next(&mut self) -> Option<Event> {
+    if let Some(ev) = self.window.pending_events.lock().unwrap().pop_front() {
+      return Some(ev);
+    }
+
+    'event: loop {
+      let x_event = match get_x_event(self.window.display) {
+        Some(e) => e,
+        None => return None,
+      };
+
+      match x_event.type_ {
+        KEYMAP_NOTIFY => {
+          println!("X11 event: KEYMAP_NOTIFY");
+          refresh_keyboard_mapping(&x_event);
+        },
+
+        CLIENT_MESSAGE => {
+          println!("X11 event: CLIENT_MESSAGE");
+          let client_msg: &XClientMessageEvent = unsafe { mem::transmute(&x_event) };
+
+          if client_msg.l[0] == self.window.wm_delete_window as c_long {
+            self.window.is_closed.store(true, Ordering::Relaxed);
+            return Some(Event::Closed);
+          } else {
+            return Some(Event::Awakened);
+          }
+        },
+
+        CONFIGURE_NOTIFY => {
+          println!("X11 event: CONFIGURE_NOTIFY");
+          let cfg_event: &XConfigureEvent = unsafe { mem::transmute(&x_event) };
+          let (current_width, current_height) = self.window.current_size.get();
+          if current_width != cfg_event.width || current_height != cfg_event.height {
+            self.window.current_size.set((cfg_event.width, cfg_event.height));
+            return Some(Event::Resized(cfg_event.width as u32, cfg_event.height as u32));
+          }
+        },
+
+        MOTION_NOTIFY => {
+//          println!("X11 event: MOTION_NOTIFY");
+          let event: &XMotionEvent = unsafe { mem::transmute(&x_event) };
+          return Some(Event::MouseMoved((event.x as i32, event.y as i32)));
+        },
+
+        FOCUS_IN | FOCUS_OUT => {
+          println!("X11 event: FOCUS_IN or FOCUS_OUT");
+          let focused = x_event.type_ == FOCUS_IN;
+          return Some(Event::Focused(focused));
+        }
+
+        KEY_PRESS | KEY_RELEASE => {
+          println!("X11 event: KEY_PRESS or KEY_RELEASE");
+          let event: &mut XKeyEvent = unsafe { mem::transmute(&x_event) };
+
+          if event.type_ == KEY_PRESS {
+            if filter_event(&x_event, self.window.window) {
+              continue 'event;
+            }
+          }
+
+          let state = if x_event.type_ == KEY_PRESS {
+            ElementState::Pressed
+          } else {
+            ElementState::Released
+          };
+
+          let written = utf8_lookup_string(self.window.input_context, &event);
+          {
+            let mut pending = self.window.pending_events.lock().unwrap();
+            for chr in written.chars() {
+              pending.push_back(Event::ReceivedCharacter(chr));
+            }
+          }
+
+          let keysym = keycode_to_keysym(self.window.display, event.keycode as KeyCode, 0);
+          let vkey = key::keycode_to_element(keysym as c_uint);
+
+          return Some(Event::KeyboardInput(state, event.keycode as u8, vkey));
+        },
+
+        BUTTON_PRESS | BUTTON_RELEASE => {
+          println!("X11 event: BUTTON_PRESS or BUTTON_RELEASE");
+          let event: &XButtonEvent = unsafe { mem::transmute(&x_event) };
+
+          let state = if x_event.type_ == BUTTON_PRESS {
+            ElementState::Pressed
+          } else {
+            ElementState::Released
+          };
+
+          let button = match event.button {
+            BUTTON1 => Some(MouseButton::Left),
+            BUTTON2 => Some(MouseButton::Middle),
+            BUTTON3 => Some(MouseButton::Right),
+            BUTTON4 => {
+              self.window.pending_events.lock().unwrap().push_back(Event::MouseWheel(1));
+              None
+            }
+            BUTTON5 => {
+              self.window.pending_events.lock().unwrap().push_back(Event::MouseWheel(-1));
+              None
+            }
+            _ => None
+          };
+
+          match button {
+            Some(button) => return Some(Event::MouseInput(state, button)),
+            None => ()
+          };
+        },
+
+        _ => {
+          println!("X11 event of unhandled type {}", x_event.type_);
+          ()
+        }
+      };
+    }
+  }
+}
+
+fn get_x_event(display: *mut Display) -> Option<XEvent> {
+  let mut x_event = unsafe { mem::uninitialized() };
+  let rc = unsafe { XCheckMaskEvent(display, -1, &mut x_event) };
+  if rc != 0 {
+    return Some(x_event);
+  }
+
+  // Functions with mask arguments don't return non-maskable events (MappingNotify, Selection
+  // events, CLIENT_MESSAGE), have to query them by type.
+  let rc = unsafe { XCheckTypedEvent(display, CLIENT_MESSAGE, &mut x_event) };
+  if rc != 0 {
+    return Some(x_event);
+  } else {
+    return None;
+  }
+}
+
+fn refresh_keyboard_mapping(event_map: &XEvent) {
+  unsafe { XRefreshKeyboardMapping(event_map); }
+}
+
+fn filter_event(event: &XEvent, window: Window) -> bool {
+  let rc = unsafe { XFilterEvent(mem::transmute(event as *const XEvent), window) };
+  rc != 0
+}
+
+fn utf8_lookup_string(ic: XIC, event: &XKeyEvent) -> String {
+  let mut buffer: [u8; 16] = unsafe { [mem::uninitialized(); 16] };
+  let count = unsafe {
+    Xutf8LookupString(ic, mem::transmute(event as *const XKeyEvent),
+      mem::transmute(buffer.as_mut_ptr()), buffer.len() as c_int, ptr::null_mut(), ptr::null_mut())
+  };
+  str::from_utf8(&buffer[..count as usize]).unwrap_or("").to_string()
+}
+
+fn keycode_to_keysym(display: *mut Display, keycode: KeyCode, index: usize) -> KeySym {
+  unsafe { XKeycodeToKeysym(display, keycode, index as i32) }
+}
 
 const GLX_CONTEXT_MAJOR_VERSION: c_int = 0x2091;
 const GLX_CONTEXT_MINOR_VERSION: c_int = 0x2092;
@@ -487,6 +764,7 @@ const KEYMAP_STATE_MASK: c_long = (1<<14);
 const EXPOSURE_MASK: c_long = (1<<15);
 const VISIBILITY_CHANGE_MASK: c_long = (1<<16);
 const STRUCTURE_NOTIFY_MASK: c_long = (1<<17);
+const FOCUS_CHANGE_MASK: c_long = (1<<21);
 
 // For XCreateWindow() parameter valuemask:
 const CW_BORDER_PIXEL: c_ulong = (1<<3);
@@ -496,11 +774,124 @@ const CW_COLORMAP: c_ulong = (1<<13);
 // For XCreateWindow() parameter class:
 const INPUT_OUTPUT: c_uint = 1;
 
+// Values for XEvent.type_:
+const KEY_PRESS: c_int = 2;
+const KEY_RELEASE: c_int = 3;
+const BUTTON_PRESS: c_int = 4;
+const BUTTON_RELEASE: c_int = 5;
+const MOTION_NOTIFY: c_int = 6;
+const FOCUS_IN: c_int = 9;
+const FOCUS_OUT: c_int = 10;
+const KEYMAP_NOTIFY: c_int = 11;
+const CONFIGURE_NOTIFY: c_int = 22;
+const CLIENT_MESSAGE: c_int = 33;
+
+#[repr(C)]
+struct XEvent {
+  type_: c_int,
+  pad: [c_long; 24],
+}
+
+#[repr(C)]
+struct XClientMessageEvent {
+  type_: c_int,
+  serial: c_ulong,
+  send_event: Bool,
+  display: *mut Display,
+  window: Window,
+  message_type: Atom,
+  format: c_int,
+  l: [c_long; 5],
+}
+
+#[repr(C)]
+struct XConfigureEvent {
+  type_: c_int,
+  serial: c_ulong,
+  send_event: Bool,
+  display: *mut Display,
+  event: Window,
+  window: Window,
+  x: c_int,
+  y: c_int,
+  width: c_int,
+  height: c_int,
+  border_width: c_int,
+  above: Window,
+  override_redirect: Bool,
+}
+
+#[repr(C)]
+struct XMotionEvent {
+  type_: c_int,
+  serial: c_ulong,
+  send_event: Bool,
+  display: *mut Display,
+  window: Window,
+  root: Window,
+  subwindow: Window,
+  time: Time,
+  x: c_int,
+  y: c_int,
+  x_root: c_int,
+  y_root: c_int,
+  state: c_uint,
+  is_hint: c_char,
+  same_screen: Bool,
+}
+
+#[repr(C)]
+struct XKeyEvent {
+  type_: c_int,
+  serial: c_ulong,
+  send_event: Bool,
+  display: *mut Display,
+  window: Window,
+  root: Window,
+  subwindow: Window,
+  time: Time,
+  x: c_int,
+  y: c_int,
+  x_root: c_int,
+  y_root: c_int,
+  state: c_uint,
+  keycode: c_uint,
+  same_screen: Bool,
+}
+
+// Values for XButtonEvent.button:
+const BUTTON1: c_uint = 1;
+const BUTTON2: c_uint = 2;
+const BUTTON3: c_uint = 3;
+const BUTTON4: c_uint = 4;
+const BUTTON5: c_uint = 5;
+
+#[repr(C)]
+struct XButtonEvent {
+  type_: c_int,
+  serial: c_ulong,
+  send_event: Bool,
+  display: *mut Display,
+  window: Window,
+  root: Window,
+  subwindow: Window,
+  time: Time,
+  x: c_int,
+  y: c_int,
+  x_root: c_int,
+  y_root: c_int,
+  state: c_uint,
+  button: c_uint,
+  same_screen: Bool,
+}
+
 #[link(name = "X11")]
 extern "C" {
+  fn XCheckMaskEvent(display: *mut Display, event_mask: c_long, event_return: *mut XEvent) -> Bool;
+  fn XCheckTypedEvent(display: *mut Display, event_type: c_int, event_return: *mut XEvent) -> Bool;
   fn XCloseDisplay(display: *mut Display);
   fn XCloseIM(im: XIM) -> Status;
-  fn XCreateColormap(display: *mut Display, w: Window, visual: *mut Visual, alloc: c_int) -> Colormap;
+  fn XCreateColormap(display: *mut Display, window: Window, visual: *mut Visual, alloc: c_int) -> Colormap;
   // This is a vararg function.
   fn XCreateIC(im: XIM, a: *const c_char, b: c_long, c: *const c_char, d: Window, e: *const ()) -> XIC;
   fn XCreateWindow(display: *mut Display, parent: Window, x: c_int, y: c_int, width: c_uint, height: c_uint,
@@ -509,19 +900,25 @@ extern "C" {
   fn XDefaultRootWindow(display: *mut Display) -> Window;
   fn XDefaultScreen(display: *mut Display) -> c_int;
   fn XDestroyIC(ic: XIC);
-  fn XDestroyWindow(display: *mut Display, w: Window);
+  fn XDestroyWindow(display: *mut Display, window: Window);
+  fn XFilterEvent(event: *mut XEvent, window: Window) -> Bool;
   fn XFlush(display: *mut Display);
   fn XFree(data: *const c_void);
   fn XInitThreads() -> Status;
   fn XInternAtom(display: *mut Display, atom_name: *const c_char, only_if_exists: Bool) -> Atom;
   fn XkbSetDetectableAutoRepeat(display: *mut Display, detectable: Bool, supported_rtm: *mut Bool) -> Bool;
-  fn XMapRaised(display: *mut Display, w: Window);
+  fn XKeycodeToKeysym(display: *mut Display, keycode: KeyCode, index: c_int) -> KeySym;
+  fn XMapRaised(display: *mut Display, window: Window);
   fn XOpenDisplay(display_name: *const c_char) -> *mut Display;
   fn XOpenIM(display: *mut Display, db: XrmDatabase, res_name: *mut c_char, res_class: *mut c_char) -> XIM;
+  fn XPeekEvent(display: *mut Display, event: *mut XEvent);
+  fn XRefreshKeyboardMapping(event_map: *const XEvent);
   fn XSetErrorHandler(callback: extern "C" fn(display: *mut Display, event: *mut XErrorEvent) -> c_int) -> c_int;
   fn XSetICFocus(ic: XIC);
-  fn XSetWMProtocols(display: *mut Display, w: Window, protocols: *mut Atom, count: c_int) -> Status;
-  fn XStoreName(display: *mut Display, w: Window, window_name: *const c_char);
+  fn XSetWMProtocols(display: *mut Display, window: Window, protocols: *mut Atom, count: c_int) -> Status;
+  fn XStoreName(display: *mut Display, window: Window, window_name: *const c_char);
+  fn Xutf8LookupString(ic: XIC, event: *mut XKeyEvent, buffer_return: *mut c_char, bytes_buffer: c_int,
+    keysym_return: *mut KeySym, status_return: *mut Status) -> c_int;
 }
 
 
