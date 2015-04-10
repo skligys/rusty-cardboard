@@ -1,18 +1,19 @@
 use std::{error, fmt};
 
 use gl;
+use gl::{AttribLoc, Enum, UnifLoc};
 use mesh;
 
 pub struct Program {
   id: gl::Program,
   vertex_shader: Shader,
   fragment_shader: Shader,
-  pub mvp_matrix: gl::UnifLoc,
+  pub mvp_matrix: UnifLoc,
   #[allow(dead_code)]
-  position: gl::AttribLoc,
-  pub texture_unit: gl::UnifLoc,
+  position: AttribLoc,
+  pub texture_unit: UnifLoc,
   #[allow(dead_code)]
-  texture_coord: gl::AttribLoc,
+  texture_coord: AttribLoc,
 }
 
 impl Drop for Program {
@@ -119,7 +120,7 @@ impl Drop for Shader {
 }
 
 impl Shader {
-  fn new(shader_string: &str, shader_type: gl::Enum) -> Result<Shader, GlError> {
+  fn new(shader_string: &str, shader_type: Enum) -> Result<Shader, GlError> {
     let id = {
       match gl::create_shader(shader_type) {
         Ok(id) => id,

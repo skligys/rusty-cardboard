@@ -11,6 +11,7 @@ use cgmath::{Matrix4, Point3, Vector3};
 use egl;
 use egl::{Context, Display, Surface};
 use gl;
+use gl::Texture;
 use mesh;
 use program::Program;
 
@@ -146,7 +147,7 @@ pub struct Engine {
   /// GL matrix
   pub view_projection_matrix: Matrix4<f32>,
   /// Texture atlas.
-  pub texture: gl::Texture,
+  pub texture: Texture,
 }
 
 impl Engine {
@@ -186,7 +187,7 @@ impl Engine {
   }
 
   /// Load texture atlas from assets folder.
-  fn load_texture_atlas(&mut self) -> gl::Texture {
+  fn load_texture_atlas(&mut self) -> Texture {
     let vec = match android_glue::load_asset("atlas.png") {
       Ok(v) => v,
       Err(e) => {
