@@ -14,17 +14,6 @@ use gl;
 use mesh;
 use program::Program;
 
-// Saved state data.  Compatible with C.
-pub struct SavedState {
-  angle: f32,  // in degrees.
-}
-
-impl Default for SavedState {
-  fn default() -> SavedState {
-    SavedState { angle: 0.0 }
-  }
-}
-
 // RAII managed EGL pointers.  Cleaned up automatically via Drop.
 pub struct EglContext {
   display: Display,
@@ -152,7 +141,7 @@ impl Drop for EglContext {
 pub struct Engine {
   pub animating: bool,
   pub egl_context: Option<Box<EglContext>>,
-  pub state: SavedState,
+  pub angle: f32,  // in degrees.
   pub program: Option<Program>,
   /// GL matrix
   pub view_projection_matrix: Matrix4<f32>,
@@ -252,7 +241,7 @@ impl Engine {
         match self.program {
           Some(ref p) => {
             // Create the model matrix based on the angle.
-            let model_matrix = from_angle_y(self.state.angle);
+            let model_matrix = from_angle_y(self.angle);
             // Compute the composite mvp_matrix and send it to program.
             let mvp_matrix = self.view_projection_matrix * model_matrix;
             gl::uniform_matrix4_f32(p.mvp_matrix, &mvp_matrix);
@@ -260,7 +249,7 @@ impl Engine {
           None => panic!("Missing program, should never happen"),
         }
 
-        // Finally, draw the triangle.
+        // Finally, draw the cube mesh.
         gl::draw_arrays_triangles(mesh::triangle_count());
 
         egl_context.swap_buffers();
@@ -273,9 +262,9 @@ impl Engine {
     if self.animating {
       // Done processing events; draw next animation frame.
       // Do a complete rotation every 10 seconds, assuming 60 FPS.
-      self.state.angle += 360.0 / 600.0;
-      if self.state.angle > 360.0 {
-        self.state.angle = 0.0;
+      self.angle += 360.0 / 600.0;
+      if self.angle > 360.0 {
+        self.angle = 0.0;
       }
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.

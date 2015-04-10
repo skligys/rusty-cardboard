@@ -69,7 +69,7 @@ pub fn main() {
   let mut engine = Engine {
     animating: false,
     egl_context: None,
-    state: Default::default(),
+    angle: 0.0,
     program: None,
     view_projection_matrix: Matrix4::identity(),
     texture: Default::default(),
