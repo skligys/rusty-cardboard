@@ -24,12 +24,16 @@ use android_glue::{AssetError, Event};
 #[cfg(target_os = "android")]
 use cgmath::Matrix4;
 #[cfg(target_os = "android")]
-use engine::{EglContext, Engine};
+use egl_context::EglContext;
+#[cfg(target_os = "android")]
+use engine::Engine;
 #[cfg(target_os = "linux")]
 use x11::{Event, XWindow};
 
 #[cfg(target_os = "android")]
 mod egl;
+#[cfg(target_os = "android")]
+mod egl_context;
 #[cfg(target_os = "android")]
 mod engine;
 mod gl;
