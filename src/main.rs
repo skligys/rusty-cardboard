@@ -1,8 +1,12 @@
-#![feature(start, std_misc, unsafe_destructor)]
+#![feature(collections, start, std_misc, thread_sleep, unsafe_destructor)]
 
 #[macro_use]
 #[cfg(target_os = "android")]
 extern crate android_glue;
+
+#[macro_use]
+#[cfg(not(target_os = "android"))]
+extern crate lazy_static;
 
 extern crate cgmath;
 extern crate libc;
@@ -14,6 +18,10 @@ use std::default::Default;
 use std::sync::mpsc;
 #[cfg(target_os = "android")]
 use std::sync::mpsc::TryRecvError;
+#[cfg(target_os = "linux")]
+use std::time::Duration;
+#[cfg(target_os = "linux")]
+use std::thread;
 
 #[cfg(target_os = "android")]
 use android_glue::Event;
@@ -32,6 +40,8 @@ mod gl;
 mod mesh;
 #[cfg(target_os = "android")]
 mod program;
+#[cfg(target_os = "linux")]
+mod x11;
 
 #[cfg(target_os = "android")]
 android_start!(main);
@@ -100,4 +110,6 @@ pub fn main() {
 #[cfg(target_os = "linux")]
 pub fn main() {
   println!("-------------------------------------------------------------------");
+  let _window = x11::XWindow::new("Rusty Cardboard");
+  thread::sleep(Duration::seconds(3));
 }
