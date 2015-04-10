@@ -5,7 +5,6 @@ extern crate png;
 use std::default::Default;
 use std::ptr;
 
-use android_glue::AssetError;
 use cgmath::{Matrix4, Point3, Vector3};
 
 use egl;
@@ -152,7 +151,8 @@ pub struct Engine {
 
 impl Engine {
   /// Initialize the engine.
-  pub fn init(&mut self, egl_context: Box<EglContext>) {
+  #[cfg(target_os = "android")]
+  pub fn init(&mut self, egl_context: Box<EglContext>, texture_atlas_bytes: &[u8]) {
     self.egl_context = Some(egl_context);
 
     // Set the background clear color to sky blue.
@@ -168,14 +168,13 @@ impl Engine {
     }
 
     // Set up textures.
-    self.texture = self.load_texture_atlas();
+    self.texture = Engine::load_texture_atlas(texture_atlas_bytes);
     gl::active_texture(gl::TEXTURE0);
     gl::bind_texture_2d(self.texture);
     match self.program {
       Some(ref p) => gl::uniform_int(p.texture_unit, 0),
       None => panic!("Missing program, should never happen"),
     }
-    ;
 
     match self.egl_context {
       Some(ref ec) => {
@@ -187,19 +186,8 @@ impl Engine {
   }
 
   /// Load texture atlas from assets folder.
-  fn load_texture_atlas(&mut self) -> Texture {
-    let vec = match android_glue::load_asset("atlas.png") {
-      Ok(v) => v,
-      Err(e) => {
-        let mess = match e {
-          AssetError::AssetMissing => "asset missing",
-          AssetError::EmptyBuffer => "couldn't read asset",
-        };
-        panic!("Loading atlas.png failed: {}", mess)
-      },
-    };
-
-    let image = png::load_png_from_memory(&vec)
+  fn load_texture_atlas(texture_atlas_bytes: &[u8]) -> Texture {
+    let image = png::load_png_from_memory(texture_atlas_bytes)
       .unwrap_or_else(|s| panic!("load_png_from_memory() failed: {}", s));
 
     let pixels = match image.pixels {

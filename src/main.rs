@@ -5,7 +5,7 @@
 extern crate android_glue;
 
 #[macro_use]
-#[cfg(not(target_os = "android"))]
+#[cfg(target_os = "linux")]
 extern crate lazy_static;
 
 extern crate cgmath;
@@ -20,7 +20,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::TryRecvError;
 
 #[cfg(target_os = "android")]
-use android_glue::Event;
+use android_glue::{AssetError, Event};
 #[cfg(target_os = "android")]
 use cgmath::Matrix4;
 #[cfg(target_os = "android")]
@@ -42,19 +42,6 @@ mod x11;
 
 #[cfg(target_os = "android")]
 android_start!(main);
-
-/// Initialize EGL context for the current display.
-#[cfg(target_os = "android")]
-fn init_display(engine: &mut Engine) {
-  println!("Renderer initializing...");
-  let start_ns = time::precise_time_ns();
-  let app = android_glue::get_app();
-  let window = app.window as *mut android_glue::ffi::ANativeWindow;
-  let egl_context = Box::new(EglContext::new(window));
-  engine.init(egl_context);
-  let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
-  println!("Renderer initialized, {:.3}ms", elapsed_ms);
-}
 
 /**
  * This is the main entry point of a native application that is using android_native_app_glue.
@@ -101,6 +88,34 @@ pub fn main() {
       engine.term();  // Double-termination is fine.
       break 'event;
     }
+  }
+}
+
+/// Initialize EGL context for the current display.
+#[cfg(target_os = "android")]
+fn init_display(engine: &mut Engine) {
+  println!("Renderer initializing...");
+  let start_ns = time::precise_time_ns();
+  let app = android_glue::get_app();
+  let window = app.window as *mut android_glue::ffi::ANativeWindow;
+  let egl_context = Box::new(EglContext::new(window));
+  let texture_atlas_bytes = load_asset("atlas.png");
+  engine.init(egl_context, &texture_atlas_bytes);
+  let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
+  println!("Renderer initialized, {:.3}ms", elapsed_ms);
+}
+
+#[cfg(target_os = "android")]
+fn load_asset(filename: &str) -> Vec<u8> {
+  match android_glue::load_asset(filename) {
+    Ok(v) => v,
+    Err(e) => {
+      let mess = match e {
+        AssetError::AssetMissing => "asset missing",
+        AssetError::EmptyBuffer => "couldn't read asset",
+      };
+      panic!("Loading atlas.png failed: {}", mess)
+    },
   }
 }
 
