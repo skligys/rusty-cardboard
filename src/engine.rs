@@ -1,6 +1,9 @@
 extern crate cgmath;
 extern crate png;
 
+#[cfg(target_os = "android")]
+use std::default::Default;
+
 use cgmath::{Matrix4, Point3, Vector3};
 
 #[cfg(target_os = "android")]
@@ -8,18 +11,37 @@ use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
-#[cfg(target_os = "android")]
 use program::Program;
+#[cfg(target_os = "linux")]
+use x11::{PollEventsIterator, XWindow};
 
-// Shared state for our app.
+#[cfg(target_os = "android")]
+pub struct EngineImpl {
+  pub egl_context: Option<Box<EglContext>>,
+  pub program: Option<Program>,
+}
+
+#[cfg(target_os = "android")]
+impl Default for EngineImpl {
+  fn default() -> EngineImpl {
+    EngineImpl {
+      egl_context: None,
+      program: None,
+    }
+  }
+}
+
+#[cfg(target_os = "linux")]
+pub struct EngineImpl {
+  pub window: XWindow,
+  pub program: Program,
+}
+
 // TODO: Find a way not to declare all fields public.
 pub struct Engine {
+  pub engine_impl: EngineImpl,
   pub animating: bool,
-  #[cfg(target_os = "android")]
-  pub egl_context: Option<Box<EglContext>>,
   pub angle: f32,  // in degrees.
-  #[cfg(target_os = "android")]
-  pub program: Option<Program>,
   /// GL matrix
   pub view_projection_matrix: Matrix4<f32>,
   /// Texture atlas.
@@ -30,8 +52,38 @@ impl Engine {
   /// Initialize the engine.
   #[cfg(target_os = "android")]
   pub fn init(&mut self, egl_context: Box<EglContext>, texture_atlas_bytes: &[u8]) {
-    self.egl_context = Some(egl_context);
+    self.engine_impl.egl_context = Some(egl_context);
 
+    self.engine_impl.program = match Program::new() {
+      Ok(p) => Some(p),
+      Err(e) => panic!("Program failed: {:?}", e),
+    };
+
+    self.common_init(texture_atlas_bytes);
+
+    if let Some(ref p) = self.engine_impl.program {
+      gl::uniform_int(p.texture_unit, 0);
+    }
+
+    // Silly gymnastics to satisfy the borrow checker.
+    let wh = if let Some(ref ec) = self.engine_impl.egl_context {
+      Some((ec.width, ec.height))
+    } else {
+      None
+    };
+    if let Some((w, h)) = wh {
+      self.set_viewport(w, h);
+    }
+  }
+
+  /// Initialize the engine.
+  #[cfg(target_os = "linux")]
+  pub fn init(&mut self, texture_atlas_bytes: &[u8]) {
+    self.common_init(texture_atlas_bytes);
+    gl::uniform_int(self.engine_impl.program.texture_unit, 0);
+  }
+
+  fn common_init(&mut self, texture_atlas_bytes: &[u8]) {
     // Set the background clear color to sky blue.
     gl::clear_color(0.5, 0.69, 1.0, 1.0);
 
@@ -39,27 +91,15 @@ impl Engine {
     gl::enable(gl::CULL_FACE);
     gl::enable(gl::DEPTH_TEST);
 
-    match Program::new() {
-      Ok(p) => self.program = Some(p),
-      Err(e) => panic!("Program failed: {:?}", e),
-    }
-
     // Set up textures.
     self.texture = Engine::load_texture_atlas(texture_atlas_bytes);
     gl::active_texture(gl::TEXTURE0);
     gl::bind_texture_2d(self.texture);
-    match self.program {
-      Some(ref p) => gl::uniform_int(p.texture_unit, 0),
-      None => panic!("Missing program, should never happen"),
-    }
+  }
 
-    match self.egl_context {
-      Some(ref ec) => {
-        gl::viewport(0, 0, ec.width, ec.height);
-        self.view_projection_matrix = view_projection_matrix(ec.width, ec.height);
-      },
-      None => panic!("self.egl_context should be present"),
-    }
+  pub fn set_viewport(&mut self, w: i32, h: i32) {
+    gl::viewport(0, 0, w, h);
+    self.view_projection_matrix = view_projection_matrix(w, h);
   }
 
   /// Load texture atlas from assets folder.
@@ -100,19 +140,13 @@ impl Engine {
       return;
     }
 
-    match self.egl_context {
+    match self.engine_impl.egl_context {
       None => return,  // No display.
       Some(ref egl_context) => {
         gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
 
-        match self.program {
-          Some(ref p) => {
-            // Create the model matrix based on the angle.
-            let model_matrix = from_angle_y(self.angle);
-            // Compute the composite mvp_matrix and send it to program.
-            let mvp_matrix = self.view_projection_matrix * model_matrix;
-            gl::uniform_matrix4_f32(p.mvp_matrix, &mvp_matrix);
-          },
+        match self.engine_impl.program {
+          Some(ref p) => self.set_mvp_matrix(p),
           None => panic!("Missing program, should never happen"),
         }
 
@@ -124,8 +158,33 @@ impl Engine {
     }
   }
 
+  /// Draw a frame.
+  #[cfg(target_os = "linux")]
+  pub fn draw(&mut self) {
+    if !self.animating {
+      return;
+    }
+
+    gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
+
+    self.set_mvp_matrix(&self.engine_impl.program);
+
+    // Finally, draw the cube mesh.
+    gl::draw_arrays_triangles(mesh::triangle_count());
+
+    self.engine_impl.window.swap_buffers();
+    self.engine_impl.window.flush();
+  }
+
+  fn set_mvp_matrix(&self, program: &Program) {
+    // Create the model matrix based on the angle.
+    let model_matrix = from_angle_y(self.angle);
+    // Compute the composite mvp_matrix and send it to program.
+    let mvp_matrix = self.view_projection_matrix * model_matrix;
+    gl::uniform_matrix4_f32(program.mvp_matrix, &mvp_matrix);
+  }
+
   /// Update for time passed and draw a frame.
-  #[cfg(target_os = "android")]
   pub fn update_draw(&mut self) {
     if self.animating {
       // Done processing events; draw next animation frame.
@@ -144,8 +203,8 @@ impl Engine {
   #[cfg(target_os = "android")]
   pub fn term(&mut self) {
     self.animating = false;
-    self.program = None;  // Drop the program.
-    self.egl_context = None;  // Drop the context.
+    // Drop the program and the EGL context.
+    self.engine_impl = Default::default();
     println!("Renderer terminated");
   }
 
@@ -157,6 +216,16 @@ impl Engine {
   /// Called when window loses input focus.
   pub fn lost_focus(&mut self) {
     self.animating = false;
+  }
+
+  #[cfg(target_os = "linux")]
+  pub fn is_closed(&self) -> bool {
+    self.engine_impl.window.is_closed()
+  }
+
+  #[cfg(target_os = "linux")]
+  pub fn poll_events(&self) -> PollEventsIterator {
+    self.engine_impl.window.poll_events()
   }
 }
 

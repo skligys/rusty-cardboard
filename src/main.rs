@@ -10,9 +10,10 @@ extern crate lazy_static;
 
 extern crate cgmath;
 extern crate libc;
+#[cfg(target_os = "linux")]
+extern crate png;
 extern crate time;
 
-#[cfg(target_os = "android")]
 use std::default::Default;
 #[cfg(target_os = "android")]
 use std::sync::mpsc;
@@ -21,12 +22,12 @@ use std::sync::mpsc::TryRecvError;
 
 #[cfg(target_os = "android")]
 use android_glue::{AssetError, Event};
-#[cfg(target_os = "android")]
 use cgmath::Matrix4;
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
-#[cfg(target_os = "android")]
-use engine::Engine;
+use engine::{Engine, EngineImpl};
+#[cfg(target_os = "linux")]
+use program::Program;
 #[cfg(target_os = "linux")]
 use x11::{Event, XWindow};
 
@@ -34,12 +35,9 @@ use x11::{Event, XWindow};
 mod egl;
 #[cfg(target_os = "android")]
 mod egl_context;
-#[cfg(target_os = "android")]
 mod engine;
 mod gl;
-#[cfg(target_os = "android")]
 mod mesh;
-#[cfg(target_os = "android")]
 mod program;
 #[cfg(target_os = "linux")]
 mod x11;
@@ -58,10 +56,9 @@ pub fn main() {
 
   // TODO: Implement restoring / saving state in android-rust-glue.
   let mut engine = Engine {
+    engine_impl: Default::default(),
     animating: false,
-    egl_context: None,
     angle: 0.0,
-    program: None,
     view_projection_matrix: Matrix4::identity(),
     texture: Default::default(),
   };
@@ -128,23 +125,68 @@ pub fn main() {
   println!("-------------------------------------------------------------------");
   let window = XWindow::new("Rusty Cardboard");
 
-  while !window.is_closed() {
-    // Set the background clear color to sky blue.
-    gl::clear_color(0.5, 0.69, 1.0, 1.0);
+  // Compile and link vertex and fragment shaders.
+  let program = match Program::new() {
+    Ok(p) => p,
+    Err(e) => panic!("Program failed: {:?}", e),
+  };
 
-    // Enable reverse face culling and depth test.
-    gl::enable(gl::CULL_FACE);
-    gl::enable(gl::DEPTH_TEST);
-    gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
-    window.flush();
+  let mut engine = Engine {
+    engine_impl: EngineImpl {
+      window: window,
+      program: program,
+    },
+    animating: false,
+    angle: 0.0,
+    view_projection_matrix: Matrix4::identity(),
+    texture: Default::default(),
+  };
+  engine.init(TEXTURE_ATLAS);
 
-    window.swap_buffers();
+  while !engine.is_closed() {
+    engine.update_draw();
+    handle_events(&mut engine);
+   }
+}
 
-    for e in window.poll_events() {
-      match e {
-        Event::MouseMoved(_) => (),  // too much spam
-        e => println!("{:?}", e),
-      }
+#[cfg(target_os = "linux")]
+static TEXTURE_ATLAS: &'static [u8] = include_bytes!("../assets/atlas.png");
+
+/// Process X11 events while there are any queued.
+#[cfg(target_os = "linux")]
+fn handle_events(engine: &mut Engine) {
+ enum FocusChange {
+    Gained,
+    Lost,
+  }
+
+  let mut focus_change: Option<FocusChange> = None;
+  let mut resized_to: Option<(u32, u32)> = None;
+  for e in engine.poll_events() {
+    match e {
+      Event::MouseMoved(_) => (),  // too much spam
+      Event::Resized(w, h) => {
+        println!("{:?}", Event::Resized(w, h));
+        resized_to = Some((w, h));
+      },
+      Event::Focused(f) => {
+        println!("{:?}", Event::Focused(f));
+        if f {
+          focus_change = Some(FocusChange::Gained);
+        } else {
+          focus_change = Some(FocusChange::Lost);
+        }
+      },
+      e => println!("{:?}", e),
     }
+  }
+
+  match focus_change {
+    Some(FocusChange::Gained) => engine.gained_focus(),
+    Some(FocusChange::Lost) => engine.lost_focus(),
+    None => (),
+  }
+  if let Some((w, h)) = resized_to {
+    engine.set_viewport(w as i32, h as i32);
   }
 }
