@@ -69,7 +69,6 @@ lazy_static! {
 
 pub struct XWindow {
   display: *mut Display,
-  screen_id: c_int,
   window: Window,
   wm_delete_window: Atom,
   input_method: XIM,
@@ -180,7 +179,6 @@ impl XWindow {
 
     XWindow {
       display: display,
-      screen_id: screen_id,
       window: window,
       wm_delete_window: wm_delete_window,
       input_method: input_method,
@@ -211,6 +209,7 @@ impl XWindow {
     unsafe { glXSwapBuffers(self.display, self.window); }
   }
 
+  #[allow(dead_code)]
   pub fn wait_events(&self) -> WaitEventsIterator {
     WaitEventsIterator {
       window: self
@@ -537,6 +536,7 @@ pub enum MouseButton {
   Other(u8),
 }
 
+#[allow(dead_code)]
 pub struct WaitEventsIterator<'a> {
   window: &'a XWindow,
 }
