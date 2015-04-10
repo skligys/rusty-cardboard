@@ -127,7 +127,6 @@ fn load_asset(filename: &str) -> Vec<u8> {
 pub fn main() {
   println!("-------------------------------------------------------------------");
   let window = XWindow::new("Rusty Cardboard");
-  window.make_current();
 
   while !window.is_closed() {
     // Set the background clear color to sky blue.

@@ -177,7 +177,7 @@ impl XWindow {
       create_context_attribs_arb(display, config, ptr::null(), true, &context_attributes)
     };
 
-    XWindow {
+    let xwindow = XWindow {
       display: display,
       window: window,
       wm_delete_window: wm_delete_window,
@@ -187,7 +187,10 @@ impl XWindow {
       is_closed: AtomicBool::new(false),
       current_size: Cell::new((0, 0)),
       pending_events: Mutex::new(VecDeque::new()),
-    }
+    };
+
+    xwindow.make_current();
+    xwindow
   }
 
   pub fn make_current(&self) {
