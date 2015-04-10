@@ -170,5 +170,12 @@ impl error::Error for GlError {
   }
 }
 
-static VERTEX_SHADER: &'static str = include_str!("vertex_shader.glsl");
-static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.glsl");
+#[cfg(target_os = "android")]
+static VERTEX_SHADER: &'static str = include_str!("vertex_shader.gles.glsl");
+#[cfg(target_os = "android")]
+static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.gles.glsl");
+
+#[cfg(target_os = "linux")]
+static VERTEX_SHADER: &'static str = include_str!("vertex_shader.mesa.glsl");
+#[cfg(target_os = "linux")]
+static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.mesa.glsl");
