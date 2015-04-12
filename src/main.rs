@@ -59,7 +59,7 @@ pub fn main() {
     engine_impl: Default::default(),
     animating: false,
     angle: 0.0,
-    view_projection_matrix: Matrix4::identity(),
+    projection_matrix: Matrix4::identity(),
     texture: Default::default(),
   };
 
@@ -138,7 +138,7 @@ pub fn main() {
     },
     animating: false,
     angle: 0.0,
-    view_projection_matrix: Matrix4::identity(),
+    projection_matrix: Matrix4::identity(),
     texture: Default::default(),
   };
   engine.init(TEXTURE_ATLAS);

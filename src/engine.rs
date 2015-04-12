@@ -42,8 +42,8 @@ pub struct Engine {
   pub engine_impl: EngineImpl,
   pub animating: bool,
   pub angle: f32,  // in degrees.
-  /// GL matrix
-  pub view_projection_matrix: Matrix4<f32>,
+  /// GL projection matrix
+  pub projection_matrix: Matrix4<f32>,
   /// Texture atlas.
   pub texture: Texture,
 }
@@ -99,7 +99,7 @@ impl Engine {
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
     gl::viewport(0, 0, w, h);
-    self.view_projection_matrix = view_projection_matrix(w, h);
+    self.projection_matrix = projection_matrix(w, h);
   }
 
   /// Load texture atlas from assets folder.
@@ -177,10 +177,9 @@ impl Engine {
   }
 
   fn set_mvp_matrix(&self, program: &Program) {
-    // Create the model matrix based on the angle.
-    let model_matrix = from_angle_y(self.angle);
-    // Compute the composite mvp_matrix and send it to program.
-    let mvp_matrix = self.view_projection_matrix * model_matrix;
+    // Compute the composite mvp_matrix and send it to program.  Model matrix
+    // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+    let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
     gl::uniform_matrix4_f32(program.mvp_matrix, &mvp_matrix);
   }
 
@@ -229,14 +228,19 @@ impl Engine {
   }
 }
 
-fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
-  // Initialize a static view matrix.
-  let eye = Point3::new(0.0, 1.0, 2.5);
-  let center = Point3::new(0.0, 0.0, -5.0);
+/// A view matrix, eye is on a 2.5 radius circle rotating around (0, 1, 0)
+// counter-clockwise and looking at (0, 0, 0).
+fn view_matrix(angle: f32) -> Matrix4<f32> {
+  let r = 2.5;
+  let (s, c) = angle.to_radians().sin_cos();
+  let eye = Point3::new(r * s, 1.0, r * c);
+  let center = Point3::new(0.0, 0.0, 0.0);
   let up = Vector3::new(0.0, 1.0, 0.0);
-  let view_matrix = Matrix4::look_at(&eye, &center, &up);
+  Matrix4::look_at(&eye, &center, &up)
+}
 
-  // Initialize perspective projection matrix as frustum matrix.
+/// Perspective projection matrix as frustum matrix.
+fn projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   let ratio = width as f32 / height as f32;
   let left = -ratio;
   let right = ratio;
@@ -244,18 +248,5 @@ fn view_projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   let top = 1.0;
   let near = 1.0;
   let far = 10.0;
-  let projection_matrix = cgmath::frustum(left, right, bottom, top, near, far);
-
-  projection_matrix * view_matrix
-}
-
-/// Create a matrix from a rotation around the `y` axis (yaw).
-fn from_angle_y(degrees: f32) -> Matrix4<f32> {
-    // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
-    use std::num::Float;
-    let (s, c) = degrees.to_radians().sin_cos();
-    Matrix4::new(   c, 0.0,  -s, 0.0,
-                  0.0, 1.0, 0.0, 0.0,
-                    s, 0.0,   c, 0.0,
-                  0.0, 0.0, 0.0, 1.0)
+  cgmath::frustum(left, right, bottom, top, near, far)
 }
