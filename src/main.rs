@@ -14,7 +14,6 @@ extern crate libc;
 extern crate png;
 extern crate time;
 
-use std::default::Default;
 #[cfg(target_os = "android")]
 use std::sync::mpsc;
 #[cfg(target_os = "android")]
@@ -22,10 +21,9 @@ use std::sync::mpsc::TryRecvError;
 
 #[cfg(target_os = "android")]
 use android_glue::{AssetError, Event};
-use cgmath::Matrix4;
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
-use engine::{Engine, EngineImpl};
+use engine::Engine;
 #[cfg(target_os = "linux")]
 use program::Program;
 #[cfg(target_os = "linux")]
@@ -55,13 +53,7 @@ pub fn main() {
   println!("-------------------------------------------------------------------");
 
   // TODO: Implement restoring / saving state in android-rust-glue.
-  let mut engine = Engine {
-    engine_impl: Default::default(),
-    animating: false,
-    angle: 0.0,
-    projection_matrix: Matrix4::identity(),
-    texture: Default::default(),
-  };
+  let mut engine = Engine::new();
 
   let (event_tx, event_rx) = mpsc::channel::<Event>();
   android_glue::add_sender_missing(event_tx);
@@ -131,16 +123,7 @@ pub fn main() {
     Err(e) => panic!("Program failed: {:?}", e),
   };
 
-  let mut engine = Engine {
-    engine_impl: EngineImpl {
-      window: window,
-      program: program,
-    },
-    animating: false,
-    angle: 0.0,
-    projection_matrix: Matrix4::identity(),
-    texture: Default::default(),
-  };
+  let mut engine = Engine::new(window, program);
   engine.init(TEXTURE_ATLAS);
 
   while !engine.is_closed() {

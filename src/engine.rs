@@ -1,7 +1,6 @@
 extern crate cgmath;
 extern crate png;
 
-#[cfg(target_os = "android")]
 use std::default::Default;
 
 use cgmath::{Matrix4, Point3, Vector3};
@@ -37,18 +36,42 @@ pub struct EngineImpl {
   pub program: Program,
 }
 
-// TODO: Find a way not to declare all fields public.
 pub struct Engine {
-  pub engine_impl: EngineImpl,
-  pub animating: bool,
-  pub angle: f32,  // in degrees.
+  engine_impl: EngineImpl,
+  animating: bool,
+  angle: f32,  // in degrees.
   /// GL projection matrix
-  pub projection_matrix: Matrix4<f32>,
+  projection_matrix: Matrix4<f32>,
   /// Texture atlas.
-  pub texture: Texture,
+  texture: Texture,
 }
 
 impl Engine {
+  #[cfg(target_os = "android")]
+  pub fn new() -> Engine {
+    Engine {
+      engine_impl: Default::default(),
+      animating: false,
+      angle: 0.0,
+      projection_matrix: Matrix4::identity(),
+      texture: Default::default(),
+    }
+  }
+
+  #[cfg(target_os = "linux")]
+  pub fn new(window: XWindow, program: Program) -> Engine {
+    Engine {
+      engine_impl: EngineImpl {
+        window: window,
+        program: program,
+      },
+      animating: false,
+      angle: 0.0,
+      projection_matrix: Matrix4::identity(),
+      texture: Default::default(),
+    }
+  }
+
   /// Initialize the engine.
   #[cfg(target_os = "android")]
   pub fn init(&mut self, egl_context: Box<EglContext>, texture_atlas_bytes: &[u8]) {
