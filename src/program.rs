@@ -85,13 +85,13 @@ impl Program {
 
     // Set the vertex attributes for position and texture coordinate.
     {
-      let (vcs, n, s) = mesh::vertex_coords();
-      gl::vertex_attrib_pointer_f32(position, n, s, vcs);
+      let vcs = mesh::vertex_coords();
+      gl::vertex_attrib_pointer_f32(position, vcs.components as i32, vcs.stride as i32, vcs.data);
     }
     gl::enable_vertex_attrib_array(position);
     {
-      let (tcs, n, s) = mesh::texture_coords();
-      gl::vertex_attrib_pointer_f32(texture_coord, n, s, tcs);
+      let tcs = mesh::texture_coords();
+      gl::vertex_attrib_pointer_f32(texture_coord, tcs.components as i32, tcs.stride as i32, tcs.data);
     }
     gl::enable_vertex_attrib_array(texture_coord);
 

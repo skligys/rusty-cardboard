@@ -174,7 +174,7 @@ impl Engine {
         }
 
         // Finally, draw the cube mesh.
-        gl::draw_arrays_triangles(mesh::triangle_count());
+        gl::draw_arrays_triangles(mesh::vertex_count() as i32);
 
         egl_context.swap_buffers();
       }
@@ -193,7 +193,7 @@ impl Engine {
     self.set_mvp_matrix(&self.engine_impl.program);
 
     // Finally, draw the cube mesh.
-    gl::draw_arrays_triangles(mesh::triangle_count());
+    gl::draw_arrays_triangles(mesh::vertex_count() as i32);
 
     self.engine_impl.window.swap_buffers();
     self.engine_impl.window.flush();
