@@ -37,6 +37,7 @@ mod engine;
 mod gl;
 mod mesh;
 mod program;
+mod world;
 #[cfg(target_os = "linux")]
 mod x11;
 

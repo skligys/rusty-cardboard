@@ -11,6 +11,7 @@ use gl;
 use gl::Texture;
 use mesh;
 use program::Program;
+use world::World;
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
 
@@ -44,6 +45,7 @@ pub struct Engine {
   projection_matrix: Matrix4<f32>,
   /// Texture atlas.
   texture: Texture,
+  world: World,
 }
 
 impl Engine {
@@ -55,6 +57,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
+      world: Default::default(),
     }
   }
 
@@ -69,6 +72,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
+      world: Default::default(),
     }
   }
 
