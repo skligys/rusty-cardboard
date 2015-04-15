@@ -3,17 +3,26 @@ extern crate png;
 
 use std::default::Default;
 
-use cgmath::{Matrix4, Point3, Vector3};
+use cgmath::{Matrix4, Point, Point3, Vector3};
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
-use program::Program;
-use world::World;
+use program::{Program, VertexArray};
+use world::{Block, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
+
+lazy_static! {
+  static ref LEFT: Vector3<i32> = Vector3::new(-1, 0, 0);
+  static ref RIGHT: Vector3<i32> = Vector3::new(1, 0, 0);
+  static ref DOWN: Vector3<i32> = Vector3::new(0, -1, 0);
+  static ref UP: Vector3<i32> = Vector3::new(0, 1, 0);
+  static ref FORWARD: Vector3<i32> = Vector3::new(0, 0, -1);
+  static ref BACK: Vector3<i32> = Vector3::new(0, 0, 1);
+}
 
 #[cfg(target_os = "android")]
 pub struct EngineImpl {
@@ -46,6 +55,7 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
+  vertex_count: u32,
 }
 
 impl Engine {
@@ -58,6 +68,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: Default::default(),
+      vertex_count: 0,
     }
   }
 
@@ -73,6 +84,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: Default::default(),
+      vertex_count: 0,
     }
   }
 
@@ -114,14 +126,91 @@ impl Engine {
     // Set the background clear color to sky blue.
     gl::clear_color(0.5, 0.69, 1.0, 1.0);
 
-    // Enable reverse face culling and depth test.
+    // Enable reverse face culling.
     gl::enable(gl::CULL_FACE);
+    // Enable depth test.
     gl::enable(gl::DEPTH_TEST);
+    gl::depth_func(gl::LEQUAL);
 
     // Set up textures.
     self.texture = Engine::load_texture_atlas(texture_atlas_bytes);
     gl::active_texture(gl::TEXTURE0);
     gl::bind_texture_2d(self.texture);
+
+    self.load_mesh();
+  }
+
+  fn create_mesh_vertices(&self) -> Vec<f32> {
+    let vertices = mesh::vertices();
+
+    // If the world nas N cubes in it, the mesh may have up to 12 * N triangles
+    // and up to 9 * 12 * N vertices.  Set capacity to half of that.
+    let mut vertex_coords: Vec<f32> = Vec::with_capacity(54 * self.world.len());
+    for block in self.world.iter() {
+      // Eliminate definitely invisible faces, i.e. those between two
+      // neighboring cubes.
+      if !self.world.contains(&block.add_v(&LEFT)) {
+        let translated_face = translate(&vertices.left, block);
+        vertex_coords.push_all(&translated_face);
+      }
+      if !self.world.contains(&block.add_v(&RIGHT)) {
+        let translated_face = translate(&vertices.right, block);
+        vertex_coords.push_all(&translated_face);
+      }
+      if !self.world.contains(&block.add_v(&DOWN)) {
+        let translated_face = translate(&vertices.bottom, block);
+        vertex_coords.push_all(&translated_face);
+      }
+      if !self.world.contains(&block.add_v(&UP)) {
+        let translated_face = translate(&vertices.top, block);
+        vertex_coords.push_all(&translated_face);
+      }
+      if !self.world.contains(&block.add_v(&FORWARD)) {
+        let translated_face = translate(&vertices.back, block);
+        vertex_coords.push_all(&translated_face);
+      }
+      if !self.world.contains(&block.add_v(&BACK)) {
+        let translated_face = translate(&vertices.front, block);
+        vertex_coords.push_all(&translated_face);
+      }
+    }
+    vertex_coords
+  }
+
+  #[cfg(target_os = "android")]
+  fn load_mesh(&mut self) {
+    if let Some(ref p) = self.engine_impl.program {
+      let mesh_vertices = self.create_mesh_vertices();
+      let vcs = VertexArray {
+        data: &mesh_vertices[0..],
+        components: 3,
+        stride: 20,
+      };
+      let tcs = VertexArray {
+        data: &mesh_vertices[3..],
+        components: 2,
+        stride: 20,
+      };
+      p.set_vertices(&vcs, &tcs);
+      self.vertex_count = mesh_vertices.len() as u32 / 5;
+    }
+  }
+
+  #[cfg(target_os = "linux")]
+  fn load_mesh(&mut self) {
+    let mesh_vertices = self.create_mesh_vertices();
+    let vcs = VertexArray {
+      data: &mesh_vertices[0..],
+      components: 3,
+      stride: 20,
+    };
+    let tcs = VertexArray {
+      data: &mesh_vertices[3..],
+      components: 2,
+      stride: 20,
+    };
+    self.engine_impl.program.set_vertices(&vcs, &tcs);
+    self.vertex_count = mesh_vertices.len() as u32 / 5;
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -178,7 +267,7 @@ impl Engine {
         }
 
         // Finally, draw the cube mesh.
-        gl::draw_arrays_triangles(mesh::vertex_count() as i32);
+        gl::draw_arrays_triangles(self.vertex_count as i32);
 
         egl_context.swap_buffers();
       }
@@ -197,7 +286,7 @@ impl Engine {
     self.set_mvp_matrix(&self.engine_impl.program);
 
     // Finally, draw the cube mesh.
-    gl::draw_arrays_triangles(mesh::vertex_count() as i32);
+    gl::draw_arrays_triangles(self.vertex_count as i32);
 
     self.engine_impl.window.swap_buffers();
     self.engine_impl.window.flush();
@@ -255,13 +344,39 @@ impl Engine {
   }
 }
 
+/// Accepts vertex and texture coordinates as a flat list: x, y, z, s, t, x, y, ...
+/// Translates vertex coordinates along the vector corresponding to the block,
+/// leaves texture coordinates unchanged.
+fn translate(coords: &[f32; 30], block: &Block) -> [f32; 30] {
+  let x = block.x as f32;
+  let y = block.y as f32;
+  let z = block.z as f32;
+
+  [
+    coords[0] + x, coords[1] + y, coords[2] + z,
+    coords[3], coords[4],
+    coords[5] + x, coords[6] + y, coords[7] + z,
+    coords[8], coords[9],
+    coords[10] + x, coords[11] + y, coords[12] + z,
+    coords[13], coords[14],
+    coords[15] + x, coords[16] + y, coords[17] + z,
+    coords[18], coords[19],
+    coords[20] + x, coords[21] + y, coords[22] + z,
+    coords[23], coords[24],
+    coords[25] + x, coords[26] + y, coords[27] + z,
+    coords[28], coords[29],
+  ]
+}
+
 /// A view matrix, eye is on a 2.5 radius circle rotating around (0, 1, 0)
 // counter-clockwise and looking at (0, 0, 0).
 fn view_matrix(angle: f32) -> Matrix4<f32> {
-  let r = 2.5;
+  let r = 5.0;
+  let y = 2.1;  // 0.5 for half block under feet + 1.6 up to eye height.
   let (s, c) = angle.to_radians().sin_cos();
-  let eye = Point3::new(r * s, 1.0, r * c);
-  let center = Point3::new(0.0, 0.0, 0.0);
+  let eye = Point3::new(r * s, y, r * c);
+  let center = Point3::new(0.0, y, 0.0);
+  // TODO: up should be perpendicular to line from eye to center.
   let up = Vector3::new(0.0, 1.0, 0.0);
   Matrix4::look_at(&eye, &center, &up)
 }

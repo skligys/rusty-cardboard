@@ -35,16 +35,17 @@ impl EglContext {
       panic!("Failed in egl::initialize(): {:?}", e);
     }
 
-    // Here specify the attributes of the desired configuration.  Below, we select an EGLConfig with
-    // at least 8 bits per color component compatible with OpenGL ES 2.0.  A very simplified
-    // selection process, where we pick the first EGLConfig that matches our criteria.
+    // Specify attributes of the desired configuration.  Select an EGLConfig with at least 8 bits
+    // per color component compatible with OpenGL ES 2.0.  A very simplified selection process,
+    // just pick the first EGLConfig that matches our criteria.
     let config = {
       let attribs_config = [
         egl::RENDERABLE_TYPE, egl::OPENGL_ES2_BIT,
-        egl::BLUE_SIZE, 8,
-        egl::GREEN_SIZE, 8,
         egl::RED_SIZE, 8,
-        egl::NONE
+        egl::GREEN_SIZE, 8,
+        egl::BLUE_SIZE, 8,
+        egl::DEPTH_SIZE, 8,
+        egl::NONE,
       ];
       let mut configs = vec!(ptr::null());
       if let Err(e) = egl::choose_config(display, &attribs_config, &mut configs) {

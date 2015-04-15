@@ -5,7 +5,6 @@
 extern crate android_glue;
 
 #[macro_use]
-#[cfg(target_os = "linux")]
 extern crate lazy_static;
 
 extern crate cgmath;

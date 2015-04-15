@@ -100,7 +100,6 @@ fn cstr_to_string(c_str: *const c_char) -> String {
   str::from_utf8(bytes).unwrap().to_string()
 }
 
-#[allow(dead_code)]
 pub fn enable(cap: Enum) {
   unsafe {
     glEnable(cap);
@@ -123,6 +122,15 @@ pub fn clear_color(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf) {
 pub fn clear(mask: Bitfield) {
   unsafe {
     glClear(mask);
+  }
+}
+
+// Depth functions:
+pub const LEQUAL: Enum = 0x0203;
+
+pub fn depth_func(func: Enum) {
+  unsafe {
+    glDepthFunc(func);
   }
 }
 
@@ -484,6 +492,7 @@ extern "C" {
   fn glDisable(cap: Enum);
   fn glClearColor(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf);
   fn glClear(mask: Bitfield);
+  fn glDepthFunc(func: Enum);
   fn glCreateShader(shader_type: Enum) -> UInt;
   fn glShaderSource(shader: UInt, count: SizeI, strings: *const *const Char, lengths: *const Int);
   fn glCompileShader(shader: UInt);
@@ -524,6 +533,7 @@ extern "C" {
   fn glDisable(cap: Enum);
   fn glClearColor(red: Clampf, green: Clampf, blue: Clampf, alpha: Clampf);
   fn glClear(mask: Bitfield);
+  fn glDepthFunc(func: Enum);
   fn glCreateShader(shader_type: Enum) -> UInt;
   fn glShaderSource(shader: UInt, count: SizeI, strings: *const *const Char, lengths: *const Int);
   fn glCompileShader(shader: UInt);

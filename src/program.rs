@@ -2,7 +2,12 @@ use std::{error, fmt};
 
 use gl;
 use gl::{AttribLoc, Enum, UnifLoc};
-use mesh;
+
+pub struct VertexArray<'a> {
+  pub data: &'a [f32],
+  pub components: u32,
+  pub stride: u32,
+}
 
 pub struct Program {
   id: gl::Program,
@@ -83,17 +88,6 @@ impl Program {
 
     println!("***** Using program(id: {})", id);
 
-    // Set the vertex attributes for position and texture coordinate.
-    {
-      let vcs = mesh::vertex_coords();
-      gl::vertex_attrib_pointer_f32(position, vcs.components as i32, vcs.stride as i32, vcs.data);
-    }
-    gl::enable_vertex_attrib_array(position);
-    {
-      let tcs = mesh::texture_coords();
-      gl::vertex_attrib_pointer_f32(texture_coord, tcs.components as i32, tcs.stride as i32, tcs.data);
-    }
-    gl::enable_vertex_attrib_array(texture_coord);
 
     let program = Program {
       id: id,
@@ -105,6 +99,17 @@ impl Program {
       texture_coord: texture_coord,
     };
     Ok(program)
+  }
+
+  /// Set the vertex attributes for position and texture coordinate.
+  pub fn set_vertices(&self, vertex_coords: &VertexArray, texture_coords: &VertexArray) {
+    gl::vertex_attrib_pointer_f32(self.position, vertex_coords.components as i32,
+      vertex_coords.stride as i32, vertex_coords.data);
+    gl::enable_vertex_attrib_array(self.position);
+
+    gl::vertex_attrib_pointer_f32(self.texture_coord, texture_coords.components as i32,
+      texture_coords.stride as i32, texture_coords.data);
+    gl::enable_vertex_attrib_array(self.texture_coord);
   }
 }
 

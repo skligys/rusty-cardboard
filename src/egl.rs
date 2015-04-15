@@ -23,6 +23,7 @@ pub type Config = *const c_void;
 pub const BLUE_SIZE: Int = 0x3022;
 pub const GREEN_SIZE: Int = 0x3023;
 pub const RED_SIZE: Int = 0x3024;
+pub const DEPTH_SIZE: Int = 0x3025;
 pub const NONE: Int =  0x3038;  /* Attrib list terminator */
 pub const RENDERABLE_TYPE: Int = 0x3040;
 pub const OPENGL_ES2_BIT: Int = 0x0004;  /* EGL_RENDERABLE_TYPE mask bits */
