@@ -2,8 +2,12 @@ extern crate cgmath;
 extern crate png;
 
 use std::default::Default;
+use std::f64;
+use time;
 
 use cgmath::{Matrix4, Point, Point3, Vector3};
+use noise;
+use noise::{Brownian3, Seed};
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
@@ -67,7 +71,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: Default::default(),
+      world: generate_chunk_of_perlin(),
       vertex_count: 0,
     }
   }
@@ -83,7 +87,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: Default::default(),
+      world: generate_chunk_of_perlin(),
       vertex_count: 0,
     }
   }
@@ -174,6 +178,7 @@ impl Engine {
         vertex_coords.push_all(&translated_face);
       }
     }
+
     vertex_coords
   }
 
@@ -344,6 +349,50 @@ impl Engine {
   }
 }
 
+fn generate_chunk_of_perlin() -> World {
+  let start_s = time::precise_time_s();
+
+  let seed = Seed::new(1);
+  let noise = Brownian3::new(noise::perlin3, 4).wavelength(16.0);
+
+  let y_min = -3;
+  let y_max = 2;
+  let y_range = y_max - y_min;
+
+  let mut min = f64::MAX;
+  let mut max = f64::MIN;
+  let mut world: World = Default::default();
+
+  for y in y_min..(y_max + 1) {
+    // Normalize into [0, 1].
+    let normalized_y = (y as f64 - y_min as f64) / y_range as f64;
+    for x in -3..4 {
+      for z in -3..3 {
+        let p = [x as f64, y as f64, z as f64];
+        let val = noise.apply(&seed, &p);
+
+        if val < min {
+          min = val;
+        }
+        if val > max {
+          max = val;
+        }
+
+        // Probablility to have a block added linearly increases from 0.0 at y_max to 1.0 at y_min.
+        if 0.5 * (val + 1.0) >= normalized_y {
+          world.add(Block::new(x, y, z));
+        }
+      }
+    }
+  }
+
+  let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
+  println!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
+  println!("***   min = {}, max = {}", min, max);
+
+  world
+}
+
 /// Accepts vertex and texture coordinates as a flat list: x, y, z, s, t, x, y, ...
 /// Translates vertex coordinates along the vector corresponding to the block,
 /// leaves texture coordinates unchanged.
@@ -368,15 +417,14 @@ fn translate(coords: &[f32; 30], block: &Block) -> [f32; 30] {
   ]
 }
 
-/// A view matrix, eye is on a 2.5 radius circle rotating around (0, 1, 0)
-// counter-clockwise and looking at (0, 0, 0).
+/// A view matrix, eye is on a 10.0 radius circle starting at (0.0, 2.1, 10.0),
+/// rotating around (0, 1, 0) counter-clockwise and looking at (0, 2.1, 0).
 fn view_matrix(angle: f32) -> Matrix4<f32> {
-  let r = 5.0;
+  let r = 10.0;
   let y = 2.1;  // 0.5 for half block under feet + 1.6 up to eye height.
   let (s, c) = angle.to_radians().sin_cos();
   let eye = Point3::new(r * s, y, r * c);
   let center = Point3::new(0.0, y, 0.0);
-  // TODO: up should be perpendicular to line from eye to center.
   let up = Vector3::new(0.0, 1.0, 0.0);
   Matrix4::look_at(&eye, &center, &up)
 }
@@ -389,6 +437,6 @@ fn projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
   let bottom = -1.0;
   let top = 1.0;
   let near = 1.0;
-  let far = 10.0;
+  let far = 50.0;
   cgmath::frustum(left, right, bottom, top, near, far)
 }

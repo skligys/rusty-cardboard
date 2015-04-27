@@ -9,6 +9,7 @@ extern crate lazy_static;
 
 extern crate cgmath;
 extern crate libc;
+extern crate noise;
 #[cfg(target_os = "linux")]
 extern crate png;
 extern crate time;
