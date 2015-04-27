@@ -1,13 +1,14 @@
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_ulong, c_void};
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::mem;
 use std::ptr;
 use std::str;
 use std::sync::{Mutex, Once, ONCE_INIT};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use gl;
 use x11::key::{ElementState, ScanCode, VirtualKeyCode};
 
 mod key;
@@ -29,6 +30,11 @@ type Time = c_ulong;
 type XIM = *mut ();
 type XrmDatabase = *const ();
 type XIC = *mut ();
+
+type Enum = c_uint;
+type UInt = c_uint;
+type SizeI = c_int;
+type Char = c_char;
 
 #[repr(C)]
 struct Display;
@@ -88,6 +94,22 @@ impl Drop for XWindow {
     destroy_window(self.display, self.window);
     close_display(self.display);
   }
+}
+
+#[cfg(debug_assertions)]
+lazy_static! {
+  static ref CONTEXT_ATTRIBUTES: Vec<c_int> = vec![
+    GLX_CONTEXT_MAJOR_VERSION, 1,
+    GLX_CONTEXT_MINOR_VERSION, 4,
+    GLX_EXTRA_CONTEXT_FLAGS_ARB, GLX_EXTRA_CONTEXT_DEBUG_BIT_ARB,
+    0,
+  ];
+}
+
+#[cfg(not(debug_assertions))]
+lazy_static! {
+  // Unused with debug assertions off.
+  static ref CONTEXT_ATTRIBUTES: Vec<c_int> = Vec::new();
 }
 
 impl XWindow {
@@ -167,15 +189,10 @@ impl XWindow {
 
     // Create GL context.
     let context = {
-      let context_attributes = vec![
-        GLX_CONTEXT_MAJOR_VERSION, 1,
-        GLX_CONTEXT_MINOR_VERSION, 4,
-        // TODO: Only for debug build:
-        GLX_EXTRA_CONTEXT_FLAGS_ARB, GLX_EXTRA_CONTEXT_DEBUG_BIT_ARB,
-        0,
-      ];
-      create_context_attribs_arb(display, config, ptr::null(), true, &context_attributes)
+      create_context_attribs(display, config, ptr::null(), true, &CONTEXT_ATTRIBUTES)
     };
+
+    set_debug_message_callback();
 
     let xwindow = XWindow {
       display: display,
@@ -465,10 +482,11 @@ fn get_proc_address(proc_name: &str) -> GLXextFuncPtr {
   }
 }
 
-fn create_context_attribs_arb(display: *mut Display, config: GLXFBConfig, share_context: GLXContext,
+#[cfg(debug_assertions)]
+fn create_context_attribs(display: *mut Display, config: GLXFBConfig, share_context: GLXContext,
   direct: bool, attrib_list: &[c_int]) -> GLXContext {
 
-  // NOTE: No caching, OK to use if only called once.
+  // NOTE: No caching, OK to use since only called once.
   let create_context_attribs_arb_fn = get_proc_address("glXCreateContextAttribsARB");
   type CreateContextAttribsArbFn =
     extern "system" fn(*mut Display, GLXFBConfig, GLXContext, Bool, *const c_int) -> GLXContext;
@@ -483,6 +501,102 @@ fn create_context_attribs_arb(display: *mut Display, config: GLXFBConfig, share_
     panic!("glXCreateContextAttribsARB() failed");
   }
   context
+}
+
+#[cfg(not(debug_assertions))]
+fn create_context_attribs(display: *mut Display, config: GLXFBConfig, share_context: GLXContext,
+  direct: bool, _attrib_list: &[c_int]) -> GLXContext {
+
+  let c_direct = if direct { 1 } else { 0 };
+  let context = unsafe {
+    glXCreateNewContext(display, config, GLX_RGBA_BIT, share_context, c_direct)
+  };
+  if context.is_null() {
+    panic!("glXCreateNewContext() failed");
+  }
+  context
+}
+
+// Gl capability to enable:
+const DEBUG_OUTPUT_SYNCHRONOUS_ARB: Enum = 0x8242;
+
+#[cfg(debug_assertions)]
+fn set_debug_message_callback() {
+  // NOTE: No caching, OK to use since only called once.
+  let debug_message_callback_arb_fn = get_proc_address("glDebugMessageCallbackARB");
+  type DebugProcArb = extern "system" fn(Enum, Enum, UInt, Enum, SizeI, *const Char, *mut c_void);
+  type DebugMessageCallbackArbFn = extern "system" fn(callback: DebugProcArb, user_param: *const c_void);
+  let debug_message_callback_arb_fn = unsafe {
+    mem::transmute::<_, DebugMessageCallbackArbFn>(debug_message_callback_arb_fn)
+  };
+
+  debug_message_callback_arb_fn(debug_message_callback, ptr::null());
+
+  // Enable debug output.
+  gl::enable(DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+}
+
+// Values for source:
+const DEBUG_SOURCE_API_ARB: Enum = 0x8246;
+const DEBUG_SOURCE_WINDOW_SYSTEM_ARB: Enum = 0x8247;
+const DEBUG_SOURCE_SHADER_COMPILER_ARB: Enum = 0x8248;
+const DEBUG_SOURCE_THIRD_PARTY_ARB: Enum = 0x8249;
+const DEBUG_SOURCE_APPLICATION_ARB: Enum = 0x824A;
+const DEBUG_SOURCE_OTHER_ARB: Enum = 0x824B;
+
+// Values for gl_type:
+const DEBUG_TYPE_ERROR_ARB: Enum = 0x824C;
+const DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB: Enum = 0x824D;
+const DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB: Enum = 0x824E;
+const DEBUG_TYPE_PORTABILITY_ARB: Enum = 0x824F;
+const DEBUG_TYPE_PERFORMANCE_ARB: Enum = 0x8250;
+const DEBUG_TYPE_OTHER_ARB: Enum = 0x8251;
+
+// Values for severity:
+const DEBUG_SEVERITY_HIGH_ARB: Enum = 0x9146;
+const DEBUG_SEVERITY_MEDIUM_ARB: Enum = 0x9147;
+const DEBUG_SEVERITY_LOW_ARB: Enum = 0x9148;
+
+#[cfg(debug_assertions)]
+extern "system" fn debug_message_callback(source: Enum, message_type: Enum, id: UInt, severity: Enum, _length: SizeI, message: *const Char, _user_param: *mut c_void) {
+
+  let source = match source {
+    DEBUG_SOURCE_API_ARB => "API".to_string(),
+    DEBUG_SOURCE_WINDOW_SYSTEM_ARB => "Window system".to_string(),
+    DEBUG_SOURCE_SHADER_COMPILER_ARB => "Shader compiler".to_string(),
+    DEBUG_SOURCE_THIRD_PARTY_ARB => "Third party".to_string(),
+    DEBUG_SOURCE_APPLICATION_ARB => "Application".to_string(),
+    DEBUG_SOURCE_OTHER_ARB => "Other".to_string(),
+    e => format!("Unknown source: {}", e),
+  };
+
+  let message_type = match message_type {
+    DEBUG_TYPE_ERROR_ARB => "Error".to_string(),
+    DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB => "Deprecated behavior".to_string(),
+    DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB => "Undefined behavior".to_string(),
+    DEBUG_TYPE_PORTABILITY_ARB => "Portability".to_string(),
+    DEBUG_TYPE_PERFORMANCE_ARB => "Performance".to_string(),
+    DEBUG_TYPE_OTHER_ARB => "Other".to_string(),
+    e => format!("Unknown message type: {}", e),
+  };
+
+  let severity = match severity {
+    DEBUG_SEVERITY_HIGH_ARB => "High severity".to_string(),
+    DEBUG_SEVERITY_MEDIUM_ARB => "Medium severity".to_string(),
+    DEBUG_SEVERITY_LOW_ARB => "Low severity".to_string(),
+    e => format!("Unknown severity: {}", e),
+  };
+
+  let message = unsafe {
+    CStr::from_ptr(message).to_bytes()
+  };
+  let message = str::from_utf8(message).unwrap_or("???");
+  println!("----- {}: {} {} {}: {}", id, severity, source, message_type, message);
+}
+
+#[cfg(not(debug_assertions))]
+fn set_debug_message_callback() {
+  // Do nothing.
 }
 
 fn destroy_context(display: *mut Display, context: GLXContext) {
@@ -951,6 +1065,8 @@ type GLXDrawable = XID;
 #[link(name = "GL")]
 extern "C" {
   fn glXChooseFBConfig(display: *mut Display, screen_id: c_int, attrib_list: *const c_int, num_elements: *mut c_int) -> *mut GLXFBConfig;
+  #[cfg(not(debug_assertions))]
+  fn glXCreateNewContext(display: *mut Display, config: GLXFBConfig, render_type: c_int, share_list: GLXContext, direct: Bool) -> GLXContext;
   fn glXDestroyContext(display: *mut Display, context: GLXContext);
   fn glXGetFBConfigAttrib(display: *mut Display, config: GLXFBConfig, attribute: c_int, value: *mut c_int) -> c_int;
   fn glXGetProcAddress(proc_name: *const GLubyte) -> Option<GLXextFuncPtr>;
