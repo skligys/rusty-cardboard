@@ -1,40 +1,18 @@
+/// Cube faces in standard order: left, right, down, up, forward, back.
+///
+/// Each face consists of 2 triangles, 6 vertices listed sequentially in the
+/// form: X, Y, Z (vertex coordinates), S, T (texture coordinates; note: T axis
+/// is directed from top down).
+pub type CubeFaces = [[f32; 30]; 6];
+
+/// Returns faces in standard order: left, right, down, up, forward, back.
 pub fn vertices() -> &'static CubeFaces {
   &VERTICES
 }
 
-/// Each face consists of 2 triangles, 6 vertices listed sequentially in the
-/// form: X, Y, Z (vertex coordinates), S, T (texture coordinates; note: T axis
-/// is directed from top down).
-pub struct CubeFaces {
-  pub front: [f32; 30],
-  pub left: [f32; 30],
-  pub top: [f32; 30],
-  pub back: [f32; 30],
-  pub right: [f32; 30],
-  pub bottom: [f32; 30],
-}
-
-static VERTICES: CubeFaces = CubeFaces {
-  front: [
-    -0.5, -0.5, 0.5,
-    0.5, 1.0,
-
-    0.5, -0.5, 0.5,
-    1.0, 1.0,
-
-    0.5, 0.5, 0.5,
-    1.0, 0.5,
-
-    0.5, 0.5, 0.5,
-    1.0, 0.5,
-
-    -0.5, 0.5, 0.5,
-    0.5, 0.5,
-
-    -0.5, -0.5, 0.5,
-    0.5, 1.0,
-  ],
-  left: [
+static VERTICES: CubeFaces = [
+  // left
+  [
     -0.5, -0.5, -0.5,
     0.5, 1.0,
 
@@ -53,45 +31,8 @@ static VERTICES: CubeFaces = CubeFaces {
     -0.5, -0.5, -0.5,
     0.5, 1.0,
   ],
-  top: [
-    -0.5, 0.5, 0.5,
-    0.0, 1.0,
-
-    0.5, 0.5, 0.5,
-    0.5, 1.0,
-
-    0.5, 0.5, -0.5,
-    0.5, 0.5,
-
-    0.5, 0.5, -0.5,
-    0.5, 0.5,
-
-    -0.5, 0.5, -0.5,
-    0.0, 0.5,
-
-    -0.5, 0.5, 0.5,
-    0.0, 1.0,
-  ],
-  back: [
-    0.5, -0.5, -0.5,
-    0.5, 1.0,
-
-    -0.5, -0.5, -0.5,
-    1.0, 1.0,
-
-    -0.5, 0.5, -0.5,
-    1.0, 0.5,
-
-    -0.5, 0.5, -0.5,
-    1.0, 0.5,
-
-    0.5, 0.5, -0.5,
-    0.5, 0.5,
-
-    0.5, -0.5, -0.5,
-    0.5, 1.0,
-  ],
-  right: [
+  // right
+  [
     0.5, -0.5, 0.5,
     0.5, 1.0,
 
@@ -110,7 +51,8 @@ static VERTICES: CubeFaces = CubeFaces {
     0.5, -0.5, 0.5,
     0.5, 1.0,
   ],
-  bottom: [
+  // down
+  [
     0.5, -0.5, 0.5,
     0.0, 0.5,
 
@@ -129,4 +71,64 @@ static VERTICES: CubeFaces = CubeFaces {
     0.5, -0.5, 0.5,
     0.0, 0.5,
   ],
-};
+  // up
+  [
+    -0.5, 0.5, 0.5,
+    0.0, 1.0,
+
+    0.5, 0.5, 0.5,
+    0.5, 1.0,
+
+    0.5, 0.5, -0.5,
+    0.5, 0.5,
+
+    0.5, 0.5, -0.5,
+    0.5, 0.5,
+
+    -0.5, 0.5, -0.5,
+    0.0, 0.5,
+
+    -0.5, 0.5, 0.5,
+    0.0, 1.0,
+  ],
+  // forward
+  [
+    0.5, -0.5, -0.5,
+    0.5, 1.0,
+
+    -0.5, -0.5, -0.5,
+    1.0, 1.0,
+
+    -0.5, 0.5, -0.5,
+    1.0, 0.5,
+
+    -0.5, 0.5, -0.5,
+    1.0, 0.5,
+
+    0.5, 0.5, -0.5,
+    0.5, 0.5,
+
+    0.5, -0.5, -0.5,
+    0.5, 1.0,
+  ],
+  // back
+  [
+    -0.5, -0.5, 0.5,
+    0.5, 1.0,
+
+    0.5, -0.5, 0.5,
+    1.0, 1.0,
+
+    0.5, 0.5, 0.5,
+    1.0, 0.5,
+
+    0.5, 0.5, 0.5,
+    1.0, 0.5,
+
+    -0.5, 0.5, 0.5,
+    0.5, 0.5,
+
+    -0.5, -0.5, 0.5,
+    0.5, 1.0,
+  ],
+];

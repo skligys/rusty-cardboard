@@ -20,12 +20,16 @@ use world::{Block, World};
 use x11::{PollEventsIterator, XWindow};
 
 lazy_static! {
-  static ref LEFT: Vector3<i32> = Vector3::new(-1, 0, 0);
-  static ref RIGHT: Vector3<i32> = Vector3::new(1, 0, 0);
-  static ref DOWN: Vector3<i32> = Vector3::new(0, -1, 0);
-  static ref UP: Vector3<i32> = Vector3::new(0, 1, 0);
-  static ref FORWARD: Vector3<i32> = Vector3::new(0, 0, -1);
-  static ref BACK: Vector3<i32> = Vector3::new(0, 0, 1);
+  // Directions in standard order: left, right, down, up, forward, back.
+  // HAS to match the order of cube faces in mesh module!
+  static ref DIRECTIONS: Vec<Vector3<i32>> = vec! [
+    Vector3::new(-1, 0, 0),
+    Vector3::new(1, 0, 0),
+    Vector3::new(0, -1, 0),
+    Vector3::new(0, 1, 0),
+    Vector3::new(0, 0, -1),
+    Vector3::new(0, 0, 1),
+  ];
 }
 
 #[cfg(target_os = "android")]
@@ -153,29 +157,10 @@ impl Engine {
     for block in self.world.iter() {
       // Eliminate definitely invisible faces, i.e. those between two
       // neighboring cubes.
-      if !self.world.contains(&block.add_v(&LEFT)) {
-        let translated_face = translate(&vertices.left, block);
-        vertex_coords.push_all(&translated_face);
-      }
-      if !self.world.contains(&block.add_v(&RIGHT)) {
-        let translated_face = translate(&vertices.right, block);
-        vertex_coords.push_all(&translated_face);
-      }
-      if !self.world.contains(&block.add_v(&DOWN)) {
-        let translated_face = translate(&vertices.bottom, block);
-        vertex_coords.push_all(&translated_face);
-      }
-      if !self.world.contains(&block.add_v(&UP)) {
-        let translated_face = translate(&vertices.top, block);
-        vertex_coords.push_all(&translated_face);
-      }
-      if !self.world.contains(&block.add_v(&FORWARD)) {
-        let translated_face = translate(&vertices.back, block);
-        vertex_coords.push_all(&translated_face);
-      }
-      if !self.world.contains(&block.add_v(&BACK)) {
-        let translated_face = translate(&vertices.front, block);
-        vertex_coords.push_all(&translated_face);
+      for (face, dir) in vertices.iter().zip(DIRECTIONS.iter()) {
+        if !self.world.contains(&block.add_v(dir)) {
+          vertex_coords.push_all(&translate(face, block));
+        }
       }
     }
 
