@@ -26,11 +26,8 @@ impl Drop for Program {
     gl::disable_vertex_attrib_array(self.position);
     gl::disable_vertex_attrib_array(self.texture_coord);
     gl::detach_shader(self.id, self.vertex_shader.id);
-    println!("***** Vertex shader(id: {}) detached", self.vertex_shader.id);
     gl::detach_shader(self.id, self.fragment_shader.id);
-    println!("***** Fragment shader(id: {}) detached", self.fragment_shader.id);
     gl::delete_program(self.id);
-    println!("***** Program(id: {}) deleted", self.id);
   }
 }
 
@@ -39,13 +36,9 @@ impl Program {
     match Shader::new(VERTEX_SHADER, gl::VERTEX_SHADER) {
       Err(e) => Err(e),
       Ok(vs) => {
-        println!("***** Vertex shader(id: {}) compiled", vs.id);
         match Shader::new(FRAGMENT_SHADER, gl::FRAGMENT_SHADER) {
           Err(e) => Err(e),
-          Ok(fs) => {
-            println!("***** Fragment shader(id: {}) compiled", vs.id);
-            Program::new_from_shaders(vs, fs)
-          }
+          Ok(fs) => Program::new_from_shaders(vs, fs),
         }
       }
     }
@@ -88,9 +81,6 @@ impl Program {
     };
     gl::use_program(id);
 
-    println!("***** Using program(id: {})", id);
-
-
     let program = Program {
       id: id,
       vertex_shader: vertex_shader,
@@ -122,7 +112,6 @@ pub struct Shader {
 impl Drop for Shader {
   fn drop(&mut self) {
     gl::delete_shader(self.id);
-    println!("***** Shader(id: {}) deleted", self.id);
   }
 }
 
