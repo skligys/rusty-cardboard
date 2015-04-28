@@ -23,6 +23,8 @@ pub struct Program {
 
 impl Drop for Program {
   fn drop(&mut self) {
+    gl::disable_vertex_attrib_array(self.position);
+    gl::disable_vertex_attrib_array(self.texture_coord);
     gl::detach_shader(self.id, self.vertex_shader.id);
     println!("***** Vertex shader(id: {}) detached", self.vertex_shader.id);
     gl::detach_shader(self.id, self.fragment_shader.id);

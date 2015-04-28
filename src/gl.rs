@@ -400,6 +400,12 @@ pub fn enable_vertex_attrib_array(location: AttribLoc) {
   }
 }
 
+pub fn disable_vertex_attrib_array(location: AttribLoc) {
+  unsafe {
+    glDisableVertexAttribArray(location as u32);
+  }
+}
+
 // glDrawArrays modes:
 const TRIANGLES: Enum = 0x0004;
 
@@ -515,6 +521,7 @@ extern "C" {
   fn glUniform1i(location: Int, value: Int);
   fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
   fn glEnableVertexAttribArray(index: UInt);
+  fn glDisableVertexAttribArray(index: UInt);
   fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
   fn glGenTextures(count: SizeI, textures: *mut UInt);
   fn glBindTexture(target: Enum, texture: UInt);
@@ -556,6 +563,7 @@ extern "C" {
   fn glUniform1i(location: Int, value: Int);
   fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
   fn glEnableVertexAttribArray(index: UInt);
+  fn glDisableVertexAttribArray(index: UInt);
   fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
   fn glGenTextures(count: SizeI, textures: *mut UInt);
   fn glBindTexture(target: Enum, texture: UInt);
