@@ -14,10 +14,8 @@ pub struct Program {
   vertex_shader: Shader,
   fragment_shader: Shader,
   pub mvp_matrix: UnifLoc,
-  #[allow(dead_code)]
   position: AttribLoc,
   pub texture_unit: UnifLoc,
-  #[allow(dead_code)]
   texture_coord: AttribLoc,
 }
 
