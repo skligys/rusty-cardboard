@@ -5,7 +5,7 @@ use std::ptr;
 
 use android_glue;
 use egl;
-use egl::{Context, Display, Surface};
+use egl::{Config, Context, Display, Surface};
 
 // RAII managed EGL pointers.  Cleaned up automatically via Drop.
 pub struct EglContext {
@@ -60,10 +60,22 @@ impl EglContext {
     // EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is guaranteed to be accepted by
     // ANativeWindow_setBuffersGeometry().  As soon as we picked a EGLConfig, we can safely
     // reconfigure the NativeWindow buffers to match, using EGL_NATIVE_VISUAL_ID.
-    let format = match egl::get_config_attrib(display, config, egl::NATIVE_VISUAL_ID) {
-      Ok(f) => f,
-      Err(e) => panic!("egl::get_config_attrib(NATIVE_VISUAL_ID) failed: {:?}", e),
-    };
+    let format = config_attrib(display, config, egl::NATIVE_VISUAL_ID, "NATIVE_VISUAL_ID");
+
+    // Dump configuration selected to stdout.
+    {
+      let config_id = config_attrib(display, config, egl::CONFIG_ID, "CONFIG_ID");
+      let red_bits = config_attrib(display, config, egl::RED_SIZE, "RED_SIZE");
+      let green_bits = config_attrib(display, config, egl::GREEN_SIZE, "GREEN_SIZE");
+      let blue_bits = config_attrib(display, config, egl::BLUE_SIZE, "BLUE_SIZE");
+      let alpha_bits = config_attrib(display, config, egl::ALPHA_SIZE, "ALPHA_SIZE");
+      let depth_bits = config_attrib(display, config, egl::DEPTH_SIZE, "DEPTH_SIZE");
+      let stencil_bits = config_attrib(display, config, egl::STENCIL_SIZE, "STENCIL_SIZE");
+      let native_visual_id = config_attrib(display, config, egl::NATIVE_VISUAL_ID, "NATIVE_VISUAL_ID");
+
+      println!("*** EGL configuration: id: 0x{:x}, {}/{}/{}/{} RGBA bits, {}/{} depth/stencil bits, visual id: 0x{:x}",
+        config_id, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, native_visual_id)
+    }
 
     unsafe {
       android_glue::ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, format);
@@ -109,6 +121,13 @@ impl EglContext {
 
   pub fn swap_buffers(&self) {
     let _ = egl::swap_buffers(self.display, self.surface);
+  }
+}
+
+fn config_attrib(display: Display, config: Config, attribute: i32, attribute_name: &str) -> i32 {
+  match egl::get_config_attrib(display, config, attribute) {
+    Ok(f) => f,
+    Err(e) => panic!("egl::get_config_attrib({}) failed: {:?}", attribute_name, e),
   }
 }
 
