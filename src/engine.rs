@@ -174,7 +174,7 @@ impl Engine {
       self.vertex_count = vertex_coords.len() as u32 / 3;
 
       // Debug:
-      println!("Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
+      log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
         self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
         texture_coords.len(), texture_coords.len() * 4);
     }
@@ -198,7 +198,7 @@ impl Engine {
     self.vertex_count = vertex_coords.len() as u32 / 3;
 
     // Debug:
-    println!("Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
+    log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
       self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
       texture_coords.len(), texture_coords.len() * 4);
   }
@@ -310,7 +310,7 @@ impl Engine {
     self.animating = false;
     // Drop the program and the EGL context.
     self.engine_impl = Default::default();
-    println!("Renderer terminated");
+    log!("*** Renderer terminated");
   }
 
   /// Called when window gains input focus.
@@ -372,8 +372,8 @@ fn generate_chunk_of_perlin() -> World {
   }
 
   let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
-  println!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
-  println!("***   min = {}, max = {}", min, max);
+  log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
+  log!("***   min = {}, max = {}", min, max);
 
   world
 }

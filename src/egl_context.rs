@@ -73,8 +73,8 @@ impl EglContext {
       let stencil_bits = config_attrib(display, config, egl::STENCIL_SIZE, "STENCIL_SIZE");
       let native_visual_id = config_attrib(display, config, egl::NATIVE_VISUAL_ID, "NATIVE_VISUAL_ID");
 
-      println!("*** EGL configuration: id: 0x{:x}, {}/{}/{}/{} RGBA bits, {}/{} depth/stencil bits, visual id: 0x{:x}",
-        config_id, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, native_visual_id)
+      log!("*** EGL configuration: id: 0x{:x}, {}/{}/{}/{} RGBA bits, {}/{} depth/stencil bits, visual id: 0x{:x}",
+        config_id, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, native_visual_id);
     }
 
     unsafe {

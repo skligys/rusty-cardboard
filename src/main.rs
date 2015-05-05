@@ -29,6 +29,9 @@ use program::Program;
 #[cfg(target_os = "linux")]
 use x11::{Event, XWindow};
 
+#[macro_use]
+mod log;
+
 #[cfg(target_os = "android")]
 mod egl;
 #[cfg(target_os = "android")]
@@ -51,7 +54,7 @@ android_start!(main);
  */
 #[cfg(target_os = "android")]
 pub fn main() {
-  println!("-------------------------------------------------------------------");
+  log!("-------------------------------------------------------------------");
 
   // TODO: Implement restoring / saving state in android-rust-glue.
   let mut engine = Engine::new();
@@ -61,7 +64,7 @@ pub fn main() {
   'event: loop {
     match event_rx.try_recv() {
       Ok(ev) => {
-        println!("----- Event: {:?}", ev);
+        log!("----- Event: {:?}", ev);
         match ev {
           Event::InitWindow => init_display(&mut engine),
           Event::GainedFocus => engine.gained_focus(),
@@ -88,7 +91,7 @@ pub fn main() {
 /// Initialize EGL context for the current display.
 #[cfg(target_os = "android")]
 fn init_display(engine: &mut Engine) {
-  println!("Renderer initializing...");
+  log!("*** Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let app = android_glue::get_app();
   let window = app.window as *mut android_glue::ffi::ANativeWindow;
@@ -96,7 +99,7 @@ fn init_display(engine: &mut Engine) {
   let texture_atlas_bytes = load_asset("atlas.png");
   engine.init(egl_context, &texture_atlas_bytes);
   let elapsed_ms = (time::precise_time_ns() - start_ns) as f32 / 1000000.0;
-  println!("Renderer initialized, {:.3}ms", elapsed_ms);
+  log!("*** Renderer initialized, {:.3}ms", elapsed_ms);
 }
 
 #[cfg(target_os = "android")]
@@ -115,7 +118,7 @@ fn load_asset(filename: &str) -> Vec<u8> {
 
 #[cfg(target_os = "linux")]
 pub fn main() {
-  println!("-------------------------------------------------------------------");
+  log!("-------------------------------------------------------------------");
   let window = XWindow::new("Rusty Cardboard");
 
   // Compile and link vertex and fragment shaders.
@@ -150,18 +153,18 @@ fn handle_events(engine: &mut Engine) {
     match e {
       Event::MouseMoved(_) => (),  // too much spam
       Event::Resized(w, h) => {
-        println!("{:?}", Event::Resized(w, h));
+        log!("{:?}", Event::Resized(w, h));
         resized_to = Some((w, h));
       },
       Event::Focused(f) => {
-        println!("{:?}", Event::Focused(f));
+        log!("{:?}", Event::Focused(f));
         if f {
           focus_change = Some(FocusChange::Gained);
         } else {
           focus_change = Some(FocusChange::Lost);
         }
       },
-      e => println!("{:?}", e),
+      e => log!("{:?}", e),
     }
   }
 
