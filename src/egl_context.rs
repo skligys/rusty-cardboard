@@ -44,7 +44,7 @@ impl EglContext {
         egl::RED_SIZE, 8,
         egl::GREEN_SIZE, 8,
         egl::BLUE_SIZE, 8,
-        egl::DEPTH_SIZE, 24,
+        egl::DEPTH_SIZE, 16,
         egl::NONE,
       ];
       let mut configs = vec!(ptr::null());
