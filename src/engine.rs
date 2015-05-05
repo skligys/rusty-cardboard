@@ -351,8 +351,8 @@ fn generate_chunk_of_perlin() -> World {
   for y in y_min..(y_max + 1) {
     // Normalize into [0, 1].
     let normalized_y = (y as f64 - y_min as f64) / y_range as f64;
-    for x in -3..4 {
-      for z in -3..3 {
+    for x in -4..5 {
+      for z in -3..4 {
         let p = [x as f64, y as f64, z as f64];
         let val = noise.apply(&seed, &p);
 
@@ -374,6 +374,7 @@ fn generate_chunk_of_perlin() -> World {
   let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
   log!("***   min = {}, max = {}", min, max);
+  log!("***   world = {:?}", world);
 
   world
 }
@@ -398,7 +399,7 @@ fn translate(coords: &[f32; 18], block: &Block) -> [f32; 18] {
 /// A view matrix, eye is on a 10.0 radius circle starting at (0.0, 2.1, 10.0),
 /// rotating around (0, 1, 0) counter-clockwise and looking at (0, 2.1, 0).
 fn view_matrix(angle: f32) -> Matrix4<f32> {
-  let r = 10.0;
+  let r = 13.0;
   let y = 2.1;  // 0.5 for half block under feet + 1.6 up to eye height.
   let (s, c) = angle.to_radians().sin_cos();
   let eye = Point3::new(r * s, y, r * c);

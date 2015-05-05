@@ -5,6 +5,7 @@ use std::default::Default;
 use cgmath::Point3;
 
 pub type Block = Point3<i32>;
+#[derive(Debug)]
 pub struct World(HashSet<Block>);
 
 impl Default for World {
