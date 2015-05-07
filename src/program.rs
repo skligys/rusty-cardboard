@@ -1,5 +1,7 @@
 use std::{error, fmt};
 
+use cgmath::Matrix4;
+
 use gl;
 use gl::{AttribLoc, Enum, UnifLoc};
 
@@ -13,9 +15,9 @@ pub struct Program {
   id: gl::Program,
   vertex_shader: Shader,
   fragment_shader: Shader,
-  pub mvp_matrix: UnifLoc,
+  mvp_matrix: UnifLoc,
   position: AttribLoc,
-  pub texture_unit: UnifLoc,
+  texture_unit: UnifLoc,
   texture_coord: AttribLoc,
   vertex_count: i32,
 }
@@ -115,6 +117,14 @@ impl Program {
 
   pub fn triangle_count(&self) -> i32 {
     self.vertex_count / 3
+  }
+
+  pub fn set_mvp_matrix(&self, mvp_matrix: Matrix4<f32>) {
+    gl::uniform_matrix4_f32(self.mvp_matrix, &mvp_matrix);
+  }
+
+  pub fn set_texture_unit(&self, unit: i32) {
+    gl::uniform_int(self.texture_unit, unit);
   }
 }
 

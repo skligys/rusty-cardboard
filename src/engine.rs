@@ -93,7 +93,7 @@ impl Engine {
     self.common_init(texture_atlas_bytes);
 
     if let Some(ref p) = self.engine_impl.program {
-      gl::uniform_int(p.texture_unit, 0);
+      p.set_texture_unit(0);
     }
 
     // Silly gymnastics to satisfy the borrow checker.
@@ -111,7 +111,7 @@ impl Engine {
   #[cfg(target_os = "linux")]
   pub fn init(&mut self, texture_atlas_bytes: &[u8]) {
     self.common_init(texture_atlas_bytes);
-    gl::uniform_int(self.engine_impl.program.texture_unit, 0);
+    self.engine_impl.program.set_texture_unit(0);
   }
 
   fn common_init(&mut self, texture_atlas_bytes: &[u8]) {
@@ -248,12 +248,16 @@ impl Engine {
         gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
 
         match self.engine_impl.program {
-          Some(ref p) => self.set_mvp_matrix(p),
+          Some(ref p) => {
+            // Compute the composite mvp_matrix and send it to program.  Model matrix
+            // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+            let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
+            p.set_mvp_matrix(mvp_matrix);
+            // Finally, draw the cube mesh.
+            gl::draw_arrays_triangles(p.vertex_count());
+          },
           None => panic!("Missing program, should never happen"),
         }
-
-        // Finally, draw the cube mesh.
-        gl::draw_arrays_triangles(self.vertex_count as i32);
 
         egl_context.swap_buffers();
       }
@@ -270,20 +274,17 @@ impl Engine {
     gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
 
     let p = &self.engine_impl.program;
-    self.set_mvp_matrix(&self.engine_impl.program);
+
+    // Compute the composite mvp_matrix and send it to program.  Model matrix
+    // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+    let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
+    p.set_mvp_matrix(mvp_matrix);
 
     // Finally, draw the cube mesh.
     gl::draw_arrays_triangles(p.vertex_count());
 
     self.engine_impl.window.swap_buffers();
     self.engine_impl.window.flush();
-  }
-
-  fn set_mvp_matrix(&self, program: &Program) {
-    // Compute the composite mvp_matrix and send it to program.  Model matrix
-    // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-    let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
-    gl::uniform_matrix4_f32(program.mvp_matrix, &mvp_matrix);
   }
 
   /// Update for time passed and draw a frame.
