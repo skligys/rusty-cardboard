@@ -14,7 +14,8 @@ use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
-use program::{Program, VertexArray};
+use program::Program;
+use vertices::Vertices;
 use world::{Block, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
@@ -132,71 +133,18 @@ impl Engine {
     self.load_mesh();
   }
 
-  fn create_mesh_vertices(world: &World) -> (Vec<f32>, Vec<f32>) {
-    // If the world nas N cubes in it, the mesh may have up to 12 * N triangles
-    // and up to 9 * 12 * N vertices.  Set capacity to half of that.
-    let mut vertex_coords: Vec<f32> = Vec::with_capacity(54 * world.len());
-    // Up to 6 * 12 * N texture coordinated, also halve it.
-    let mut texture_coords: Vec<f32> = Vec::with_capacity(36 * world.len());
-
-    for block in world.iter() {
-      // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
-      for face in mesh::CUBE_FACES.iter() {
-        if !world.contains(&block.add_v(&face.direction)) {
-          vertex_coords.push_all(&translate(&face.vertices, block));
-          texture_coords.push_all(&face.texture_coords);
-        }
-      }
-    }
-
-    (vertex_coords, texture_coords)
-  }
-
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
     if let Some(ref mut p) = self.engine_impl.program {
-      let (vertex_coords, texture_coords) = Engine::create_mesh_vertices(&self.world);
-      assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
-      let vcs = VertexArray {
-        data: &vertex_coords[0..],
-        components: 3,
-        stride: 12,
-      };
-      let tcs = VertexArray {
-        data: &texture_coords[0..],
-        components: 2,
-        stride: 8,
-      };
-      p.set_vertices(&vcs, &tcs);
-
-      // Debug:
-      log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
-        p.triangle_count(), p.vertex_count(), vertex_coords.len(), vertex_coords.len() * 4,
-        texture_coords.len(), texture_coords.len() * 4);
+      let vertices = create_mesh_vertices(&self.world);
+      p.set_vertices(&vertices);
     }
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let (vertex_coords, texture_coords) = Engine::create_mesh_vertices(&self.world);
-    assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
-    let vcs = VertexArray {
-      data: &vertex_coords[0..],
-      components: 3,
-      stride: 12,
-    };
-    let tcs = VertexArray {
-      data: &texture_coords[0..],
-      components: 2,
-      stride: 8,
-    };
-    let p = &mut self.engine_impl.program;
-    p.set_vertices(&vcs, &tcs);
-
-    // Debug:
-    log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
-      p.triangle_count(), p.vertex_count(), vertex_coords.len(), vertex_coords.len() * 4,
-      texture_coords.len(), texture_coords.len() * 4);
+    let vertices = create_mesh_vertices(&self.world);
+    self.engine_impl.program.set_vertices(&vertices);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -375,6 +323,19 @@ fn generate_chunk_of_perlin() -> World {
   log!("***   world = {:?}", world);
 
   world
+}
+
+fn create_mesh_vertices(world: &World) -> Vertices {
+  let mut vertices = Vertices::new(world.len());
+  for block in world.iter() {
+    // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
+    for face in mesh::CUBE_FACES.iter() {
+      if !world.contains(&block.add_v(&face.direction)) {
+        vertices.add(&translate(&face.vertices, block), &face.texture_coords);
+      }
+    }
+  }
+  vertices
 }
 
 /// Accepts vertex coordinates as a flat list: x, y, z, x, y, z, ...
