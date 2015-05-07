@@ -17,6 +17,7 @@ pub struct Program {
   position: AttribLoc,
   pub texture_unit: UnifLoc,
   texture_coord: AttribLoc,
+  vertex_count: i32,
 }
 
 impl Drop for Program {
@@ -87,12 +88,16 @@ impl Program {
       position: position,
       texture_unit: texture_unit,
       texture_coord: texture_coord,
+      vertex_count: 0,
     };
     Ok(program)
   }
 
   /// Set the vertex attributes for position and texture coordinate.
-  pub fn set_vertices(&self, vertex_coords: &VertexArray, texture_coords: &VertexArray) {
+  pub fn set_vertices(&mut self, vertex_coords: &VertexArray, texture_coords: &VertexArray) {
+    assert!(vertex_coords.data.len() as u32 / vertex_coords.components ==
+      texture_coords.data.len() as u32 / texture_coords.components);
+
     gl::vertex_attrib_pointer_f32(self.position, vertex_coords.components as i32,
       vertex_coords.stride as i32, vertex_coords.data);
     gl::enable_vertex_attrib_array(self.position);
@@ -100,6 +105,16 @@ impl Program {
     gl::vertex_attrib_pointer_f32(self.texture_coord, texture_coords.components as i32,
       texture_coords.stride as i32, texture_coords.data);
     gl::enable_vertex_attrib_array(self.texture_coord);
+
+    self.vertex_count = vertex_coords.data.len() as i32 / vertex_coords.components as i32;
+  }
+
+  pub fn vertex_count(&self) -> i32 {
+    self.vertex_count
+  }
+
+  pub fn triangle_count(&self) -> i32 {
+    self.vertex_count / 3
   }
 }
 

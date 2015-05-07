@@ -50,7 +50,6 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
-  vertex_count: u32,
 }
 
 impl Engine {
@@ -63,7 +62,6 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertex_count: 0,
     }
   }
 
@@ -79,7 +77,6 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertex_count: 0,
     }
   }
 
@@ -135,17 +132,17 @@ impl Engine {
     self.load_mesh();
   }
 
-  fn create_mesh_vertices(&self) -> (Vec<f32>, Vec<f32>) {
+  fn create_mesh_vertices(world: &World) -> (Vec<f32>, Vec<f32>) {
     // If the world nas N cubes in it, the mesh may have up to 12 * N triangles
     // and up to 9 * 12 * N vertices.  Set capacity to half of that.
-    let mut vertex_coords: Vec<f32> = Vec::with_capacity(54 * self.world.len());
+    let mut vertex_coords: Vec<f32> = Vec::with_capacity(54 * world.len());
     // Up to 6 * 12 * N texture coordinated, also halve it.
-    let mut texture_coords: Vec<f32> = Vec::with_capacity(36 * self.world.len());
+    let mut texture_coords: Vec<f32> = Vec::with_capacity(36 * world.len());
 
-    for block in self.world.iter() {
+    for block in world.iter() {
       // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
       for face in mesh::CUBE_FACES.iter() {
-        if !self.world.contains(&block.add_v(&face.direction)) {
+        if !world.contains(&block.add_v(&face.direction)) {
           vertex_coords.push_all(&translate(&face.vertices, block));
           texture_coords.push_all(&face.texture_coords);
         }
@@ -157,8 +154,8 @@ impl Engine {
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
-    if let Some(ref p) = self.engine_impl.program {
-      let (vertex_coords, texture_coords) = self.create_mesh_vertices();
+    if let Some(ref mut p) = self.engine_impl.program {
+      let (vertex_coords, texture_coords) = Engine::create_mesh_vertices(&self.world);
       assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
       let vcs = VertexArray {
         data: &vertex_coords[0..],
@@ -171,18 +168,17 @@ impl Engine {
         stride: 8,
       };
       p.set_vertices(&vcs, &tcs);
-      self.vertex_count = vertex_coords.len() as u32 / 3;
 
       // Debug:
       log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
-        self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
+        p.triangle_count(), p.vertex_count(), vertex_coords.len(), vertex_coords.len() * 4,
         texture_coords.len(), texture_coords.len() * 4);
     }
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let (vertex_coords, texture_coords) = self.create_mesh_vertices();
+    let (vertex_coords, texture_coords) = Engine::create_mesh_vertices(&self.world);
     assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
     let vcs = VertexArray {
       data: &vertex_coords[0..],
@@ -194,12 +190,12 @@ impl Engine {
       components: 2,
       stride: 8,
     };
-    self.engine_impl.program.set_vertices(&vcs, &tcs);
-    self.vertex_count = vertex_coords.len() as u32 / 3;
+    let p = &mut self.engine_impl.program;
+    p.set_vertices(&vcs, &tcs);
 
     // Debug:
     log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
-      self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
+      p.triangle_count(), p.vertex_count(), vertex_coords.len(), vertex_coords.len() * 4,
       texture_coords.len(), texture_coords.len() * 4);
   }
 
@@ -273,10 +269,11 @@ impl Engine {
 
     gl::clear(gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT);
 
+    let p = &self.engine_impl.program;
     self.set_mvp_matrix(&self.engine_impl.program);
 
     // Finally, draw the cube mesh.
-    gl::draw_arrays_triangles(self.vertex_count as i32);
+    gl::draw_arrays_triangles(p.vertex_count());
 
     self.engine_impl.window.swap_buffers();
     self.engine_impl.window.flush();
@@ -351,7 +348,7 @@ fn generate_chunk_of_perlin() -> World {
   for y in y_min..(y_max + 1) {
     // Normalize into [0, 1].
     let normalized_y = (y as f64 - y_min as f64) / y_range as f64;
-    for x in -4..5 {
+    for x in -3..3 {
       for z in -3..4 {
         let p = [x as f64, y as f64, z as f64];
         let val = noise.apply(&seed, &p);
