@@ -198,6 +198,10 @@ impl Engine {
       };
       p.set_vertices(&vcs, &tcs);
       self.vertex_count = mesh_vertices.len() as u32 / 5;
+
+      // Debug:
+      println!("----- Triangle count: {}, vertex count: {}, point count: {}, bytes: {}",
+        self.vertex_count / 3, self.vertex_count, mesh_vertices.len(), mesh_vertices.len() * 4);
     }
   }
 
@@ -216,6 +220,10 @@ impl Engine {
     };
     self.engine_impl.program.set_vertices(&vcs, &tcs);
     self.vertex_count = mesh_vertices.len() as u32 / 5;
+
+    // Debug:
+    println!("----- Triangle count: {}, vertex count: {}, point count: {}, bytes: {}",
+      self.vertex_count / 3, self.vertex_count, mesh_vertices.len(), mesh_vertices.len() * 4);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
