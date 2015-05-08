@@ -46,7 +46,6 @@ impl Vertices {
     VertexArray {
       data: &self.position_coords[0..],
       components: 3,
-      stride: 12,
     }
   }
 
@@ -58,7 +57,6 @@ impl Vertices {
     VertexArray {
       data: &self.texture_coords[0..],
       components: 2,
-      stride: 8,
     }
   }
 }

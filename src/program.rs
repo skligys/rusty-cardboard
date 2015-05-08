@@ -9,7 +9,6 @@ use vertices::Vertices;
 pub struct VertexArray<'a> {
   pub data: &'a [f32],
   pub components: u32,
-  pub stride: u32,
 }
 
 pub struct Program {
@@ -103,11 +102,11 @@ impl Program {
       texture_coords.data.len() as u32 / texture_coords.components);
 
     gl::vertex_attrib_pointer_f32(self.position, position_coords.components as i32,
-      position_coords.stride as i32, position_coords.data);
+      0, position_coords.data);
     gl::enable_vertex_attrib_array(self.position);
 
     gl::vertex_attrib_pointer_f32(self.texture_coord, texture_coords.components as i32,
-      texture_coords.stride as i32, texture_coords.data);
+      0, texture_coords.data);
     gl::enable_vertex_attrib_array(self.texture_coord);
 
     let vertex_count = position_coords.data.len() as i32 / position_coords.components as i32;
