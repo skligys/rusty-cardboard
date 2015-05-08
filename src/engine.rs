@@ -52,6 +52,9 @@ pub struct Engine {
   texture: Texture,
   world: World,
   position_indices: Vec<u16>,
+  // Important: need to save position and texture coordinates since OpenGL tries to reload them
+  // from memory!
+  vertices: Vertices,
 }
 
 impl Engine {
@@ -65,6 +68,7 @@ impl Engine {
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
       position_indices: Vec::new(),
+      vertices: Vertices::new(0),
     }
   }
 
@@ -81,6 +85,7 @@ impl Engine {
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
       position_indices: Vec::new(),
+      vertices: Vertices::new(0),
     }
   }
 
@@ -143,6 +148,7 @@ impl Engine {
       p.set_vertices(&vertices);
     }
     self.position_indices = vertices.position_indices();
+    self.vertices = vertices;
   }
 
   #[cfg(target_os = "linux")]
@@ -150,6 +156,7 @@ impl Engine {
     let vertices = create_mesh_vertices(&self.world);
     self.engine_impl.program.set_vertices(&vertices);
     self.position_indices = vertices.position_indices();
+    self.vertices = vertices;
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
