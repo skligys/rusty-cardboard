@@ -1,6 +1,6 @@
 [root]
 name = "RustyCardboard"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "android_glue 0.0.2 (git+https://github.com/skligys/android-rs-glue)",
  "cgmath 0.1.5 (git+https://github.com/bjz/cgmath-rs.git)",
