@@ -406,12 +406,12 @@ pub fn disable_vertex_attrib_array(location: AttribLoc) {
   }
 }
 
-// glDrawArrays modes:
+// glDrawElements modes:
 const TRIANGLES: Enum = 0x0004;
 
-pub fn draw_arrays_triangles(count: i32) {
+pub fn draw_elements_triangles_u16(count: i32, indices: &[u16]) {
   unsafe {
-    glDrawArrays(TRIANGLES, 0, count);
+    glDrawElements(TRIANGLES, count, UNSIGNED_SHORT, indices.as_ptr() as *const c_void);
   }
 }
 
@@ -522,7 +522,7 @@ extern "C" {
   fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
   fn glEnableVertexAttribArray(index: UInt);
   fn glDisableVertexAttribArray(index: UInt);
-  fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
+  fn glDrawElements(mode: Enum, count: SizeI, type_: Enum, indices: *const c_void);
   fn glGenTextures(count: SizeI, textures: *mut UInt);
   fn glBindTexture(target: Enum, texture: UInt);
   fn glTexParameteri(target: Enum, param_name: Enum, param_value: Int);
@@ -564,7 +564,7 @@ extern "C" {
   fn glVertexAttribPointer(index: UInt, size: Int, data_type: Enum, normalized: Boolean, stride: SizeI, pointer: *const Void);
   fn glEnableVertexAttribArray(index: UInt);
   fn glDisableVertexAttribArray(index: UInt);
-  fn glDrawArrays(mode: Enum, first: Int, count: SizeI);
+  fn glDrawElements(mode: Enum, count: SizeI, type_: Enum, indices: *const c_void);
   fn glGenTextures(count: SizeI, textures: *mut UInt);
   fn glBindTexture(target: Enum, texture: UInt);
   fn glTexParameteri(target: Enum, param_name: Enum, param_value: Int);

@@ -51,6 +51,7 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
+  position_indices: Vec<u16>,
 }
 
 impl Engine {
@@ -63,6 +64,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
+      position_indices: Vec::new(),
     }
   }
 
@@ -78,6 +80,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
+      position_indices: Vec::new(),
     }
   }
 
@@ -135,16 +138,18 @@ impl Engine {
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
+    let vertices = create_mesh_vertices(&self.world);
     if let Some(ref mut p) = self.engine_impl.program {
-      let vertices = create_mesh_vertices(&self.world);
       p.set_vertices(&vertices);
     }
+    self.position_indices = vertices.position_indices();
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
     let vertices = create_mesh_vertices(&self.world);
     self.engine_impl.program.set_vertices(&vertices);
+    self.position_indices = vertices.position_indices();
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -202,7 +207,10 @@ impl Engine {
             let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
             p.set_mvp_matrix(mvp_matrix);
             // Finally, draw the cube mesh.
-            gl::draw_arrays_triangles(p.vertex_count());
+            if self.position_indices.len() > 0 {
+              // TODO: Switch to VBOs once it works for better performance!!!
+              gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[0..]);
+            }
           },
           None => panic!("Missing program, should never happen"),
         }
@@ -229,7 +237,10 @@ impl Engine {
     p.set_mvp_matrix(mvp_matrix);
 
     // Finally, draw the cube mesh.
-    gl::draw_arrays_triangles(p.vertex_count());
+    if self.position_indices.len() > 0 {
+      // TODO: Switch to VBOs once it works for better performance!!!
+      gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[0..]);
+    }
 
     self.engine_impl.window.swap_buffers();
     self.engine_impl.window.flush();
@@ -286,8 +297,8 @@ fn generate_chunk_of_perlin() -> World {
   let seed = Seed::new(1);
   let noise = Brownian3::new(noise::perlin3, 4).wavelength(16.0);
 
-  let y_min = -3;
-  let y_max = 2;
+  let y_min = -8;
+  let y_max = 7;
   let y_range = y_max - y_min;
 
   let mut min = f64::MAX;
@@ -297,8 +308,8 @@ fn generate_chunk_of_perlin() -> World {
   for y in y_min..(y_max + 1) {
     // Normalize into [0, 1].
     let normalized_y = (y as f64 - y_min as f64) / y_range as f64;
-    for x in -3..3 {
-      for z in -3..4 {
+    for x in -8..8 {
+      for z in -8..8 {
         let p = [x as f64, y as f64, z as f64];
         let val = noise.apply(&seed, &p);
 
@@ -331,7 +342,7 @@ fn create_mesh_vertices(world: &World) -> Vertices {
     // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
     for face in mesh::CUBE_FACES.iter() {
       if !world.contains(&block.add_v(&face.direction)) {
-        vertices.add(&translate(&face.vertices, block), &face.texture_coords);
+        vertices.add(&translate(&face.position_coords, block), &face.position_indices, &face.texture_coords);
       }
     }
   }
@@ -340,7 +351,7 @@ fn create_mesh_vertices(world: &World) -> Vertices {
 
 /// Accepts vertex coordinates as a flat list: x, y, z, x, y, z, ...
 /// Translates them along the vector corresponding to the block.
-fn translate(coords: &[f32; 18], block: &Block) -> [f32; 18] {
+fn translate(coords: &[f32; 12], block: &Block) -> [f32; 12] {
   let x = block.x as f32;
   let y = block.y as f32;
   let z = block.z as f32;
@@ -350,8 +361,6 @@ fn translate(coords: &[f32; 18], block: &Block) -> [f32; 18] {
     coords[3] + x, coords[4] + y, coords[5] + z,
     coords[6] + x, coords[7] + y, coords[8] + z,
     coords[9] + x, coords[10] + y, coords[11] + z,
-    coords[12] + x, coords[13] + y, coords[14] + z,
-    coords[15] + x, coords[16] + y, coords[17] + z,
   ]
 }
 
