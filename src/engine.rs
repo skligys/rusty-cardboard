@@ -19,19 +19,6 @@ use world::{Block, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
 
-lazy_static! {
-  // Directions in standard order: left, right, down, up, forward, back.
-  // HAS to match the order of cube faces in mesh module!
-  static ref DIRECTIONS: Vec<Vector3<i32>> = vec! [
-    Vector3::new(-1, 0, 0),
-    Vector3::new(1, 0, 0),
-    Vector3::new(0, -1, 0),
-    Vector3::new(0, 1, 0),
-    Vector3::new(0, 0, -1),
-    Vector3::new(0, 0, 1),
-  ];
-}
-
 #[cfg(target_os = "android")]
 pub struct EngineImpl {
   pub egl_context: Option<Box<EglContext>>,
@@ -148,67 +135,72 @@ impl Engine {
     self.load_mesh();
   }
 
-  fn create_mesh_vertices(&self) -> Vec<f32> {
-    let vertices = mesh::vertices();
-
+  fn create_mesh_vertices(&self) -> (Vec<f32>, Vec<f32>) {
     // If the world nas N cubes in it, the mesh may have up to 12 * N triangles
     // and up to 9 * 12 * N vertices.  Set capacity to half of that.
     let mut vertex_coords: Vec<f32> = Vec::with_capacity(54 * self.world.len());
+    // Up to 6 * 12 * N texture coordinated, also halve it.
+    let mut texture_coords: Vec<f32> = Vec::with_capacity(36 * self.world.len());
+
     for block in self.world.iter() {
-      // Eliminate definitely invisible faces, i.e. those between two
-      // neighboring cubes.
-      for (face, dir) in vertices.iter().zip(DIRECTIONS.iter()) {
-        if !self.world.contains(&block.add_v(dir)) {
-          vertex_coords.push_all(&translate(face, block));
+      // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
+      for face in mesh::CUBE_FACES.iter() {
+        if !self.world.contains(&block.add_v(&face.direction)) {
+          vertex_coords.push_all(&translate(&face.vertices, block));
+          texture_coords.push_all(&face.texture_coords);
         }
       }
     }
 
-    vertex_coords
+    (vertex_coords, texture_coords)
   }
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
     if let Some(ref p) = self.engine_impl.program {
-      let mesh_vertices = self.create_mesh_vertices();
+      let (vertex_coords, texture_coords) = self.create_mesh_vertices();
+      assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
       let vcs = VertexArray {
-        data: &mesh_vertices[0..],
+        data: &vertex_coords[0..],
         components: 3,
-        stride: 20,
+        stride: 12,
       };
       let tcs = VertexArray {
-        data: &mesh_vertices[3..],
+        data: &texture_coords[0..],
         components: 2,
-        stride: 20,
+        stride: 8,
       };
       p.set_vertices(&vcs, &tcs);
-      self.vertex_count = mesh_vertices.len() as u32 / 5;
+      self.vertex_count = vertex_coords.len() as u32 / 3;
 
       // Debug:
-      println!("----- Triangle count: {}, vertex count: {}, point count: {}, bytes: {}",
-        self.vertex_count / 3, self.vertex_count, mesh_vertices.len(), mesh_vertices.len() * 4);
+      println!("Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
+        self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
+        texture_coords.len(), texture_coords.len() * 4);
     }
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let mesh_vertices = self.create_mesh_vertices();
+    let (vertex_coords, texture_coords) = self.create_mesh_vertices();
+    assert!(vertex_coords.len() / 3 == texture_coords.len() / 2);
     let vcs = VertexArray {
-      data: &mesh_vertices[0..],
+      data: &vertex_coords[0..],
       components: 3,
-      stride: 20,
+      stride: 12,
     };
     let tcs = VertexArray {
-      data: &mesh_vertices[3..],
+      data: &texture_coords[0..],
       components: 2,
-      stride: 20,
+      stride: 8,
     };
     self.engine_impl.program.set_vertices(&vcs, &tcs);
-    self.vertex_count = mesh_vertices.len() as u32 / 5;
+    self.vertex_count = vertex_coords.len() as u32 / 3;
 
     // Debug:
-    println!("----- Triangle count: {}, vertex count: {}, point count: {}, bytes: {}",
-      self.vertex_count / 3, self.vertex_count, mesh_vertices.len(), mesh_vertices.len() * 4);
+    println!("Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
+      self.vertex_count / 3, self.vertex_count, vertex_coords.len(), vertex_coords.len() * 4,
+      texture_coords.len(), texture_coords.len() * 4);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -386,27 +378,20 @@ fn generate_chunk_of_perlin() -> World {
   world
 }
 
-/// Accepts vertex and texture coordinates as a flat list: x, y, z, s, t, x, y, ...
-/// Translates vertex coordinates along the vector corresponding to the block,
-/// leaves texture coordinates unchanged.
-fn translate(coords: &[f32; 30], block: &Block) -> [f32; 30] {
+/// Accepts vertex coordinates as a flat list: x, y, z, x, y, z, ...
+/// Translates them along the vector corresponding to the block.
+fn translate(coords: &[f32; 18], block: &Block) -> [f32; 18] {
   let x = block.x as f32;
   let y = block.y as f32;
   let z = block.z as f32;
 
   [
     coords[0] + x, coords[1] + y, coords[2] + z,
-    coords[3], coords[4],
-    coords[5] + x, coords[6] + y, coords[7] + z,
-    coords[8], coords[9],
-    coords[10] + x, coords[11] + y, coords[12] + z,
-    coords[13], coords[14],
+    coords[3] + x, coords[4] + y, coords[5] + z,
+    coords[6] + x, coords[7] + y, coords[8] + z,
+    coords[9] + x, coords[10] + y, coords[11] + z,
+    coords[12] + x, coords[13] + y, coords[14] + z,
     coords[15] + x, coords[16] + y, coords[17] + z,
-    coords[18], coords[19],
-    coords[20] + x, coords[21] + y, coords[22] + z,
-    coords[23], coords[24],
-    coords[25] + x, coords[26] + y, coords[27] + z,
-    coords[28], coords[29],
   ]
 }
 
