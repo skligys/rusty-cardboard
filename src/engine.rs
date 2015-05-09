@@ -52,8 +52,8 @@ pub struct Engine {
   texture: Texture,
   world: World,
   // Important: need to save position and texture coordinates since OpenGL tries to reload them
-  // from memory!
-  vertices: Vertices,
+  // from memory!  Put them in a box so that the contents of arrays never ever moves.
+  vertices: Box<Vertices>,
 }
 
 impl Engine {
@@ -66,7 +66,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertices: Vertices::new(0),
+      vertices: Box::new(Vertices::new(0)),
     }
   }
 
@@ -82,7 +82,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertices: Vertices::new(0),
+      vertices: Box::new(Vertices::new(0)),
     }
   }
 
@@ -140,18 +140,16 @@ impl Engine {
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
-    let vertices = create_mesh_vertices(&self.world);
+    self.vertices = Box::new(create_mesh_vertices(&self.world));
     if let Some(ref mut p) = self.engine_impl.program {
-      p.set_vertices(&vertices);
+      p.set_vertices(&self.vertices);
     }
-    self.vertices = vertices;
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let vertices = create_mesh_vertices(&self.world);
-    self.engine_impl.program.set_vertices(&vertices);
-    self.vertices = vertices;
+    self.vertices = Box::new(create_mesh_vertices(&self.world));
+    self.engine_impl.program.set_vertices(&self.vertices);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
