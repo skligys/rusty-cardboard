@@ -338,7 +338,6 @@ fn generate_chunk_of_perlin() -> World {
   let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
   log!("***   min = {}, max = {}", min, max);
-  log!("***   world = {:?}", world);
 
   world
 }
