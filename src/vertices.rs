@@ -49,8 +49,8 @@ impl Vertices {
     }
   }
 
-  pub fn position_indices(&self) -> Vec<u16> {
-    self.position_indices.clone()
+  pub fn position_indices(&self) -> &[u16] {
+    &self.position_indices[..]
   }
 
   pub fn texture_coord_array(&self) -> VertexArray {

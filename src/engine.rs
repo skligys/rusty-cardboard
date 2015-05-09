@@ -51,7 +51,6 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
-  position_indices: Vec<u16>,
   // Important: need to save position and texture coordinates since OpenGL tries to reload them
   // from memory!
   vertices: Vertices,
@@ -67,7 +66,6 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      position_indices: Vec::new(),
       vertices: Vertices::new(0),
     }
   }
@@ -84,7 +82,6 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      position_indices: Vec::new(),
       vertices: Vertices::new(0),
     }
   }
@@ -147,7 +144,6 @@ impl Engine {
     if let Some(ref mut p) = self.engine_impl.program {
       p.set_vertices(&vertices);
     }
-    self.position_indices = vertices.position_indices();
     self.vertices = vertices;
   }
 
@@ -155,7 +151,6 @@ impl Engine {
   fn load_mesh(&mut self) {
     let vertices = create_mesh_vertices(&self.world);
     self.engine_impl.program.set_vertices(&vertices);
-    self.position_indices = vertices.position_indices();
     self.vertices = vertices;
   }
 
@@ -214,9 +209,10 @@ impl Engine {
             let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
             p.set_mvp_matrix(mvp_matrix);
             // Finally, draw the cube mesh.
-            if self.position_indices.len() > 0 {
+            let position_indices = self.vertices.position_indices();
+            if position_indices.len() > 0 {
               // TODO: Switch to VBOs once it works for better performance!!!
-              gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[..]);
+              gl::draw_elements_triangles_u16(position_indices.len() as i32, position_indices);
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -244,9 +240,10 @@ impl Engine {
     p.set_mvp_matrix(mvp_matrix);
 
     // Finally, draw the cube mesh.
-    if self.position_indices.len() > 0 {
+    let position_indices = self.vertices.position_indices();
+    if position_indices.len() > 0 {
       // TODO: Switch to VBOs once it works for better performance!!!
-      gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[..]);
+      gl::draw_elements_triangles_u16(position_indices.len() as i32, position_indices);
     }
 
     self.engine_impl.window.swap_buffers();
