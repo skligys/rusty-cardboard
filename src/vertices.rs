@@ -44,7 +44,7 @@ impl Vertices {
 
   pub fn position_coord_array(&self) -> VertexArray {
     VertexArray {
-      data: &self.position_coords[0..],
+      data: &self.position_coords[..],
       components: 3,
     }
   }
@@ -55,7 +55,7 @@ impl Vertices {
 
   pub fn texture_coord_array(&self) -> VertexArray {
     VertexArray {
-      data: &self.texture_coords[0..],
+      data: &self.texture_coords[..],
       components: 2,
     }
   }

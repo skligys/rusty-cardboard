@@ -216,7 +216,7 @@ impl Engine {
             // Finally, draw the cube mesh.
             if self.position_indices.len() > 0 {
               // TODO: Switch to VBOs once it works for better performance!!!
-              gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[0..]);
+              gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[..]);
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -246,7 +246,7 @@ impl Engine {
     // Finally, draw the cube mesh.
     if self.position_indices.len() > 0 {
       // TODO: Switch to VBOs once it works for better performance!!!
-      gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[0..]);
+      gl::draw_elements_triangles_u16(self.position_indices.len() as i32, &self.position_indices[..]);
     }
 
     self.engine_impl.window.swap_buffers();
