@@ -1,63 +1,56 @@
 use std::u16;
 
+use mesh::Coords;
 use program::VertexArray;
 
 pub struct Vertices {
-  position_coords: Vec<f32>,
-  position_indices: Vec<u16>,
-  texture_coords: Vec<f32>,
-  vertex_count: usize,
+  coords: Vec<Coords>,
+  indices: Vec<u16>,
 }
 
 impl Vertices {
   pub fn new(cube_count: usize) -> Vertices {
     Vertices {
-      // If the world nas N cubes in it, the mesh may have up to 12 * N triangles
-      // and up to 6 * 12 * N vertices.  Set capacity to half of that since some
+      // If the world nas N cubes in it, the mesh may have up to 6 * N faces
+      // and up to 6 * 4 * N vertices.  Set capacity to half of that since some
       // faces will be hidden.
-      position_coords: Vec::with_capacity(36 * cube_count),
-      // Up to 3 * 12 * N indices, halve it.
-      position_indices: Vec::with_capacity(18 * cube_count),
-      // Up to 4 * 12 * N texture coordinates, also halve it.
-      texture_coords: Vec::with_capacity(24 * cube_count),
-      vertex_count: 0,
+      coords: Vec::with_capacity(12 * cube_count),
+      // Up to 6 * 6 * N indices, halve it.
+      indices: Vec::with_capacity(18 * cube_count),
     }
   }
 
-  pub fn add(&mut self, position_coords: &[f32; 12], indices: &[u16; 6], texture_coords: &[f32; 8]) {
-    let new_vertex_count = self.vertex_count + 4;
+  pub fn add(&mut self, coords: &[Coords; 4], indices: &[u16; 6]) {
+    let old_vertex_count = self.coords.len();
+    let new_vertex_count = old_vertex_count + 4;
     assert!(new_vertex_count <= u16::MAX as usize, "Too many vertices: {}", new_vertex_count);
 
-    self.position_coords.push_all(position_coords);
-    self.position_indices.push_all(&shift(indices, self.vertex_count as u16));
-    self.texture_coords.push_all(texture_coords);
-    self.vertex_count += 4;
+    self.coords.push_all(coords);
+    self.indices.push_all(&shift(indices, old_vertex_count as u16));
   }
 
-  pub fn position_coord_len(&self) -> usize {
-    self.position_coords.len()
-  }
-
-  pub fn texture_coord_len(&self) -> usize {
-    self.texture_coords.len()
+  pub fn vertex_count(&self) -> usize {
+    self.coords.len()
   }
 
   pub fn position_coord_array(&self) -> VertexArray {
     VertexArray {
-      data: &self.position_coords[..],
+      data: self.coords[0].xyz.as_ptr(),
       components: 3,
+      stride: Coords::size_bytes(),
     }
-  }
-
-  pub fn position_indices(&self) -> &[u16] {
-    &self.position_indices[..]
   }
 
   pub fn texture_coord_array(&self) -> VertexArray {
     VertexArray {
-      data: &self.texture_coords[..],
+      data: self.coords[0].st.as_ptr(),
       components: 2,
+      stride: Coords::size_bytes(),
     }
+  }
+
+  pub fn indices(&self) -> &[u16] {
+    &self.indices[..]
   }
 }
 

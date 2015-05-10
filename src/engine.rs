@@ -14,6 +14,7 @@ use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
+use mesh::Coords;
 use program::Program;
 use vertices::Vertices;
 use world::{Block, World};
@@ -207,10 +208,10 @@ impl Engine {
             let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
             p.set_mvp_matrix(mvp_matrix);
             // Finally, draw the cube mesh.
-            let position_indices = self.vertices.position_indices();
-            if position_indices.len() > 0 {
+            let indices = self.vertices.indices();
+            if indices.len() > 0 {
               // TODO: Switch to VBOs once it works for better performance!!!
-              gl::draw_elements_triangles_u16(position_indices.len() as i32, position_indices);
+              gl::draw_elements_triangles_u16(indices.len() as i32, indices);
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -238,10 +239,10 @@ impl Engine {
     p.set_mvp_matrix(mvp_matrix);
 
     // Finally, draw the cube mesh.
-    let position_indices = self.vertices.position_indices();
-    if position_indices.len() > 0 {
+    let indices = self.vertices.indices();
+    if indices.len() > 0 {
       // TODO: Switch to VBOs once it works for better performance!!!
-      gl::draw_elements_triangles_u16(position_indices.len() as i32, position_indices);
+      gl::draw_elements_triangles_u16(indices.len() as i32, indices);
     }
 
     self.engine_impl.window.swap_buffers();
@@ -343,25 +344,25 @@ fn create_mesh_vertices(world: &World) -> Vertices {
     // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
     for face in mesh::CUBE_FACES.iter() {
       if !world.contains(&block.add_v(&face.direction)) {
-        vertices.add(&translate(&face.position_coords, block), &face.position_indices, &face.texture_coords);
+        vertices.add(&translate(&face.coords, block), &mesh::INDICES);
       }
     }
   }
   vertices
 }
 
-/// Accepts vertex coordinates as a flat list: x, y, z, x, y, z, ...
-/// Translates them along the vector corresponding to the block.
-fn translate(coords: &[f32; 12], block: &Block) -> [f32; 12] {
+/// Accepts vertex and texture coordinates.  Translates vertex coordinates only along the vector
+// corresponding to the block center position.
+fn translate(coords: &[Coords; 4], block: &Block) -> [Coords; 4] {
   let x = block.x as f32;
   let y = block.y as f32;
   let z = block.z as f32;
 
   [
-    coords[0] + x, coords[1] + y, coords[2] + z,
-    coords[3] + x, coords[4] + y, coords[5] + z,
-    coords[6] + x, coords[7] + y, coords[8] + z,
-    coords[9] + x, coords[10] + y, coords[11] + z,
+    coords[0].translate(x, y, z),
+    coords[1].translate(x, y, z),
+    coords[2].translate(x, y, z),
+    coords[3].translate(x, y, z),
   ]
 }
 

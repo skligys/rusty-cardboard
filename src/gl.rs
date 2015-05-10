@@ -387,10 +387,10 @@ const FLOAT: Enum = 0x1406;
 #[allow(dead_code)]
 const FIXED: Enum = 0x140C;
 
-pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: &[f32]) {
+pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: *const f32) {
   unsafe {
     glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride,
-      values.as_ptr() as *const Void);
+      values as *const Void);
   }
 }
 

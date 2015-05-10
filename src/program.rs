@@ -4,11 +4,13 @@ use cgmath::Matrix4;
 
 use gl;
 use gl::{AttribLoc, Enum, UnifLoc};
+use mesh::Coords;
 use vertices::Vertices;
 
-pub struct VertexArray<'a> {
-  pub data: &'a [f32],
+pub struct VertexArray {
+  pub data: *const f32,
   pub components: u32,
+  pub stride: u32,
 }
 
 pub struct Program {
@@ -96,26 +98,19 @@ impl Program {
   /// Set the vertex attributes for position and texture coordinate.
   pub fn set_vertices(&self, vertices: &Vertices) {
     let position_coords = vertices.position_coord_array();
-    let texture_coords = vertices.texture_coord_array();
-
-    assert!(position_coords.data.len() as u32 / position_coords.components ==
-      texture_coords.data.len() as u32 / texture_coords.components);
-
     gl::vertex_attrib_pointer_f32(self.position, position_coords.components as i32,
-      0, position_coords.data);
+      position_coords.stride as i32, position_coords.data);
     gl::enable_vertex_attrib_array(self.position);
 
+    let texture_coords = vertices.texture_coord_array();
     gl::vertex_attrib_pointer_f32(self.texture_coord, texture_coords.components as i32,
-      0, texture_coords.data);
+      texture_coords.stride as i32, texture_coords.data);
     gl::enable_vertex_attrib_array(self.texture_coord);
 
-    let vertex_count = position_coords.data.len() as i32 / position_coords.components as i32;
-
     // Debug:
-    log!("*** Triangle count: {}, vertex count: {}, xyz count: {}, bytes: {}, st count: {}, bytes: {}",
-      vertex_count / 2, vertex_count,
-      vertices.position_coord_len(), vertices.position_coord_len() * 4,
-      vertices.texture_coord_len(), vertices.texture_coord_len() * 4);
+    log!("*** Triangle count: {}, vertex count: {}, bytes: {}",
+      vertices.vertex_count() / 2, vertices.vertex_count(),
+      vertices.vertex_count() * Coords::size_bytes() as usize);
   }
 
   pub fn set_mvp_matrix(&self, mvp_matrix: Matrix4<f32>) {
