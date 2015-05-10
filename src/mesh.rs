@@ -5,12 +5,12 @@ use cgmath::Vector3;
 #[derive(Clone)]
 pub struct Coords {
   pub xyz: [f32; 3],
-  pub st: [f32; 2]
+  pub st: [u16; 2]
 }
 
 impl Coords {
   pub fn size_bytes() -> u32 {
-    5 * 4
+    3 * 4 + 2 * 2
   }
 
   pub fn translate(&self, x: f32, y: f32, z: f32) -> Coords {
@@ -48,19 +48,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [-0.5, -0.5, -0.5],
-          st: [0.5, 1.0],
+          st: [0x7fff, 0xffff],
         },
         Coords {
           xyz: [-0.5, -0.5, 0.5],
-          st: [1.0, 1.0],
+          st: [0xffff, 0xffff],
         },
         Coords {
           xyz: [-0.5, 0.5, 0.5],
-          st: [1.0, 0.5],
+          st: [0xffff, 0x7fff],
         },
         Coords {
           xyz: [-0.5, 0.5, -0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
       ],
       direction: Vector3::new(-1, 0, 0),
@@ -70,19 +70,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [0.5, -0.5, 0.5],
-          st: [0.5, 1.0],
+          st: [0x7fff, 0xffff],
         },
         Coords {
           xyz: [0.5, -0.5, -0.5],
-          st: [1.0, 1.0],
+          st: [0xffff, 0xffff],
         },
         Coords {
           xyz: [0.5, 0.5, -0.5],
-          st: [1.0, 0.5],
+          st: [0xffff, 0x7fff],
         },
         Coords {
           xyz: [0.5, 0.5, 0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
       ],
       direction: Vector3::new(1, 0, 0),
@@ -92,19 +92,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [-0.5, -0.5, -0.5],
-          st: [0.0, 0.5],
+          st: [0x0000, 0x7fff],
         },
         Coords {
           xyz: [0.5, -0.5, -0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
         Coords {
           xyz: [0.5, -0.5, 0.5],
-          st: [0.5, 0.0],
+          st: [0x7fff, 0x0000],
         },
         Coords {
           xyz: [-0.5, -0.5,  0.5],
-          st: [0.0, 0.0],
+          st: [0x0000, 0x0000],
         },
       ],
       direction: Vector3::new(0, -1, 0),
@@ -114,19 +114,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [-0.5, 0.5, 0.5],
-          st: [0.0, 1.0],
+          st: [0x0000, 0xffff],
         },
         Coords {
           xyz: [0.5, 0.5,  0.5],
-          st: [0.5, 1.0],
+          st: [0x7fff, 0xffff],
         },
         Coords {
           xyz: [0.5, 0.5, -0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
         Coords {
           xyz: [-0.5, 0.5, -0.5],
-          st: [0.0, 0.5],
+          st: [0x0000, 0x7fff],
         },
       ],
       direction: Vector3::new(0, 1, 0),
@@ -136,19 +136,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [0.5, -0.5, -0.5],
-          st: [0.5, 1.0],
+          st: [0x7fff, 0xffff],
         },
         Coords {
           xyz: [-0.5, -0.5, -0.5],
-          st: [1.0, 1.0],
+          st: [0xffff, 0xffff],
         },
         Coords {
           xyz: [-0.5, 0.5, -0.5],
-          st: [1.0, 0.5],
+          st: [0xffff, 0x7fff],
         },
         Coords {
           xyz: [0.5,  0.5, -0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
       ],
       direction: Vector3::new(0, 0, -1),
@@ -158,19 +158,19 @@ lazy_static! {
       coords: [
         Coords {
           xyz: [-0.5, -0.5, 0.5],
-          st: [0.5, 1.0],
+          st: [0x7fff, 0xffff],
         },
         Coords {
           xyz: [0.5, -0.5, 0.5],
-          st: [1.0, 1.0],
+          st: [0xffff, 0xffff],
         },
         Coords {
           xyz: [0.5, 0.5, 0.5],
-          st: [1.0, 0.5],
+          st: [0xffff, 0x7fff],
         },
         Coords {
           xyz: [-0.5, 0.5, 0.5],
-          st: [0.5, 0.5],
+          st: [0x7fff, 0x7fff],
         },
       ],
       direction: Vector3::new(0, 0, 1),

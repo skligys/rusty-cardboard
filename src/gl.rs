@@ -377,7 +377,6 @@ const BYTE: Enum = 0x1400;
 const UNSIGNED_BYTE: Enum = 0x1401;
 #[allow(dead_code)]
 const SHORT: Enum = 0x1402;
-#[allow(dead_code)]
 const UNSIGNED_SHORT: Enum = 0x1403;
 #[allow(dead_code)]
 const INT: Enum = 0x1404;
@@ -390,6 +389,13 @@ const FIXED: Enum = 0x140C;
 pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: *const f32) {
   unsafe {
     glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride,
+      values as *const Void);
+  }
+}
+
+pub fn vertex_attrib_pointer_u16(location: AttribLoc, components: i32, stride: i32, values: *const u16) {
+  unsafe {
+    glVertexAttribPointer(location as u32, components, UNSIGNED_SHORT, TRUE as u8, stride,
       values as *const Void);
   }
 }

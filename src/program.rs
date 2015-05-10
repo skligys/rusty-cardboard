@@ -7,8 +7,14 @@ use gl::{AttribLoc, Enum, UnifLoc};
 use mesh::Coords;
 use vertices::Vertices;
 
-pub struct VertexArray {
+pub struct VertexArrayF32 {
   pub data: *const f32,
+  pub components: u32,
+  pub stride: u32,
+}
+
+pub struct VertexArrayU16 {
+  pub data: *const u16,
   pub components: u32,
   pub stride: u32,
 }
@@ -103,7 +109,7 @@ impl Program {
     gl::enable_vertex_attrib_array(self.position);
 
     let texture_coords = vertices.texture_coord_array();
-    gl::vertex_attrib_pointer_f32(self.texture_coord, texture_coords.components as i32,
+    gl::vertex_attrib_pointer_u16(self.texture_coord, texture_coords.components as i32,
       texture_coords.stride as i32, texture_coords.data);
     gl::enable_vertex_attrib_array(self.texture_coord);
 
