@@ -178,8 +178,8 @@ impl Engine {
 
     let texture = gl::gen_texture();
     gl::bind_texture_2d(texture);
-    gl::texture_2d_param(gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR);
-    gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::LINEAR);
+    gl::texture_2d_param(gl::TEXTURE_MIN_FILTER, gl::NEAREST_MIPMAP_LINEAR);
+    gl::texture_2d_param(gl::TEXTURE_MAG_FILTER, gl::NEAREST);
     gl::texture_2d_param(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE);
     gl::texture_2d_param(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE);
     gl::texture_2d_image_rgba(image.width as i32, image.height as i32, &pixels);

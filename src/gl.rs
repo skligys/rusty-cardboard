@@ -448,6 +448,7 @@ pub const TEXTURE_WRAP_T: Enum = 0x2803;
 // Texture parameter values for TEXTURE_MAG_FILTER:
 #[allow(dead_code)]
 pub const NEAREST: Int = 0x2600;
+#[allow(dead_code)]
 pub const LINEAR: Int = 0x2601;
 
 // Texture parameter values for TEXTURE_MIN_FILTER:
@@ -455,8 +456,8 @@ pub const LINEAR: Int = 0x2601;
 pub const NEAREST_MIPMAP_NEAREST: Int = 0x2700;
 #[allow(dead_code)]
 pub const LINEAR_MIPMAP_NEAREST: Int = 0x2701;
-#[allow(dead_code)]
 pub const NEAREST_MIPMAP_LINEAR: Int = 0x2702;
+#[allow(dead_code)]
 pub const LINEAR_MIPMAP_LINEAR: Int = 0x2703;
 
 // Texture parameter values for TEXTURE_WRAP_S, TEXTURE_WRAP_T:
