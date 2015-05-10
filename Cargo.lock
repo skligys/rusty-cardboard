@@ -19,7 +19,7 @@ source = "git+https://github.com/skligys/android-rs-glue#10116eb3af332f9565e0fb8
 [[package]]
 name = "cgmath"
 version = "0.1.5"
-source = "git+https://github.com/bjz/cgmath-rs.git#84fa1759011508067f9143a6874377364c943821"
+source = "git+https://github.com/bjz/cgmath-rs.git#d2975cc0682bdddb6aa3f63cdd802c720533e299"
 dependencies = [
  "num 0.1.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
