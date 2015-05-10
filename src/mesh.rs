@@ -13,6 +13,10 @@ impl Coords {
     3 * 4 + 2 * 2
   }
 
+  pub fn texture_offset() -> u32 {
+    3 * 4
+  }
+
   pub fn translate(&self, x: f32, y: f32, z: f32) -> Coords {
     Coords {
       xyz: [

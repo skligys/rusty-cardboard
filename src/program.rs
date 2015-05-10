@@ -7,14 +7,7 @@ use gl::{AttribLoc, Enum, UnifLoc};
 use mesh::Coords;
 use vertices::Vertices;
 
-pub struct VertexArrayF32 {
-  pub data: *const f32,
-  pub components: u32,
-  pub stride: u32,
-}
-
-pub struct VertexArrayU16 {
-  pub data: *const u16,
+pub struct VertexArray {
   pub components: u32,
   pub stride: u32,
 }
@@ -102,21 +95,22 @@ impl Program {
   }
 
   /// Set the vertex attributes for position and texture coordinate.
+  /// Uses the current VBO set in gl::bind_array_buffer() to get data.
   pub fn set_vertices(&self, vertices: &Vertices) {
     let position_coords = vertices.position_coord_array();
     gl::vertex_attrib_pointer_f32(self.position, position_coords.components as i32,
-      position_coords.stride as i32, position_coords.data);
+      position_coords.stride as i32, 0);
     gl::enable_vertex_attrib_array(self.position);
 
     let texture_coords = vertices.texture_coord_array();
     gl::vertex_attrib_pointer_u16(self.texture_coord, texture_coords.components as i32,
-      texture_coords.stride as i32, texture_coords.data);
+      texture_coords.stride as i32, Coords::texture_offset());
     gl::enable_vertex_attrib_array(self.texture_coord);
 
     // Debug:
     log!("*** Triangle count: {}, vertex count: {}, bytes: {}",
-      vertices.vertex_count() / 2, vertices.vertex_count(),
-      vertices.vertex_count() * Coords::size_bytes() as usize);
+      vertices.coord_count() / 2, vertices.coord_count(),
+      vertices.coord_count() * Coords::size_bytes() as usize);
   }
 
   pub fn set_mvp_matrix(&self, mvp_matrix: Matrix4<f32>) {

@@ -12,7 +12,7 @@ use noise::{Brownian3, Seed};
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
 use gl;
-use gl::Texture;
+use gl::{Buffer, Texture};
 use mesh;
 use mesh::Coords;
 use program::Program;
@@ -52,9 +52,8 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
-  // Important: need to save position and texture coordinates since OpenGL tries to reload them
-  // from memory!  Put them in a box so that the contents of arrays never ever moves.
-  vertices: Box<Vertices>,
+  index_buffer: Buffer,
+  index_count: i32,
 }
 
 impl Engine {
@@ -67,7 +66,8 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertices: Box::new(Vertices::new(0)),
+      index_buffer: 0,
+      index_count: 0,
     }
   }
 
@@ -83,7 +83,8 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(),
-      vertices: Box::new(Vertices::new(0)),
+      index_buffer: 0,
+      index_count: 0,
     }
   }
 
@@ -141,16 +142,30 @@ impl Engine {
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
-    self.vertices = Box::new(create_mesh_vertices(&self.world));
     if let Some(ref mut p) = self.engine_impl.program {
-      p.set_vertices(&self.vertices);
+      let vertices = create_mesh_vertices(&self.world);
+      let (vbo, ibo) = upload_vertices(&vertices);
+
+      gl::bind_array_buffer(vbo);
+      p.set_vertices(&vertices);
+
+      self.index_buffer = ibo;
+      self.index_count = vertices.index_count() as i32;
+      gl::bind_index_buffer(ibo);
     }
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    self.vertices = Box::new(create_mesh_vertices(&self.world));
-    self.engine_impl.program.set_vertices(&self.vertices);
+    let vertices = create_mesh_vertices(&self.world);
+    let (vbo, ibo) = upload_vertices(&vertices);
+
+    gl::bind_array_buffer(vbo);
+    self.engine_impl.program.set_vertices(&vertices);
+
+    self.index_buffer = ibo;
+    self.index_count = vertices.index_count() as i32;
+    gl::bind_index_buffer(ibo);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -208,10 +223,9 @@ impl Engine {
             let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
             p.set_mvp_matrix(mvp_matrix);
             // Finally, draw the cube mesh.
-            let indices = self.vertices.indices();
-            if indices.len() > 0 {
-              // TODO: Switch to VBOs once it works for better performance!!!
-              gl::draw_elements_triangles_u16(indices.len() as i32, indices);
+            if self.index_buffer > 0 {
+              gl::bind_index_buffer(self.index_buffer);
+              gl::draw_elements_triangles_u16(self.index_count);
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -239,10 +253,9 @@ impl Engine {
     p.set_mvp_matrix(mvp_matrix);
 
     // Finally, draw the cube mesh.
-    let indices = self.vertices.indices();
-    if indices.len() > 0 {
-      // TODO: Switch to VBOs once it works for better performance!!!
-      gl::draw_elements_triangles_u16(indices.len() as i32, indices);
+    if self.index_buffer > 0 {
+      gl::bind_index_buffer(self.index_buffer);
+      gl::draw_elements_triangles_u16(self.index_count);
     }
 
     self.engine_impl.window.swap_buffers();
@@ -364,6 +377,22 @@ fn translate(coords: &[Coords; 4], block: &Block) -> [Coords; 4] {
     coords[2].translate(x, y, z),
     coords[3].translate(x, y, z),
   ]
+}
+
+fn upload_vertices(vertices: &Vertices) -> (Buffer, Buffer) {
+  match &gl::generate_buffers(2)[..] {
+    [vbo, ibo] => {
+      gl::bind_array_buffer(vbo);
+      gl::array_buffer_data_coords(vertices.coords());
+      gl::unbind_array_buffer();
+
+      gl::bind_index_buffer(ibo);
+      gl::index_buffer_data_u16(vertices.indices());
+      gl::unbind_index_buffer();
+      (vbo, ibo)
+    },
+    _ => panic!("gl::generate_buffers(2) should return 2 buffers"),
+  }
 }
 
 /// A view matrix, eye is on a 10.0 radius circle starting at (0.0, 2.1, 10.0),

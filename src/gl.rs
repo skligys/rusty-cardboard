@@ -1,12 +1,13 @@
 extern crate cgmath;
 extern crate libc;
 
-use libc::{c_char, c_float, c_int, c_uchar, c_uint, c_void, uint8_t};
+use libc::{c_char, c_float, c_int, c_uchar, c_uint, c_void, ptrdiff_t, uint8_t};
 use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
 
 use cgmath::Matrix4;
+use mesh::Coords;
 
 pub type Enum = c_uint;
 
@@ -52,15 +53,16 @@ const OUT_OF_MEMORY: Enum = 0x0505;
 #[allow(dead_code)]
 const INVALID_FRAMEBUFFER_OPERATION: Enum = 0x0506;
 
-type UByte = uint8_t;
-pub type Clampf = c_float;
 pub type Bitfield = c_uint;
-type UInt = c_uint;
-type SizeI = c_int;
-type Char = c_char;
-pub type Int = c_int;
 type Boolean = c_uchar;
+type Char = c_char;
+pub type Clampf = c_float;
 type Float = c_float;
+pub type Int = c_int;
+type SizeI = c_int;
+type SizeIPtr = ptrdiff_t;
+type UByte = uint8_t;
+type UInt = c_uint;
 type Void = c_void;
 
 // glClear mask bits:
@@ -386,17 +388,15 @@ const FLOAT: Enum = 0x1406;
 #[allow(dead_code)]
 const FIXED: Enum = 0x140C;
 
-pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, values: *const f32) {
+pub fn vertex_attrib_pointer_f32(location: AttribLoc, components: i32, stride: i32, offset: u32) {
   unsafe {
-    glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride,
-      values as *const Void);
+    glVertexAttribPointer(location as u32, components, FLOAT, FALSE as u8, stride, offset as *const Void);
   }
 }
 
-pub fn vertex_attrib_pointer_u16(location: AttribLoc, components: i32, stride: i32, values: *const u16) {
+pub fn vertex_attrib_pointer_u16(location: AttribLoc, components: i32, stride: i32, offset: u32) {
   unsafe {
-    glVertexAttribPointer(location as u32, components, UNSIGNED_SHORT, TRUE as u8, stride,
-      values as *const Void);
+    glVertexAttribPointer(location as u32, components, UNSIGNED_SHORT, TRUE as u8, stride, offset as *const Void);
   }
 }
 
@@ -415,9 +415,9 @@ pub fn disable_vertex_attrib_array(location: AttribLoc) {
 // glDrawElements modes:
 const TRIANGLES: Enum = 0x0004;
 
-pub fn draw_elements_triangles_u16(count: i32, indices: &[u16]) {
+pub fn draw_elements_triangles_u16(count: i32) {
   unsafe {
-    glDrawElements(TRIANGLES, count, UNSIGNED_SHORT, indices.as_ptr() as *const c_void);
+    glDrawElements(TRIANGLES, count, UNSIGNED_SHORT, ptr::null());
   }
 }
 
@@ -467,7 +467,7 @@ pub const CLAMP_TO_EDGE: Int = 0x812F;
 #[allow(dead_code)]
 pub const MIRRORED_REPEAT: Int = 0x8370;
 
-pub fn texture_2d_param(param_name: Enum, param_value: Int) {
+pub fn texture_2d_param(param_name: Enum, param_value: i32) {
   unsafe {
     glTexParameteri(TEXTURE_2D, param_name, param_value);
   }
@@ -475,7 +475,7 @@ pub fn texture_2d_param(param_name: Enum, param_value: Int) {
 
 const RGBA: Enum = 0x1908;
 
-pub fn texture_2d_image_rgba(width: Int, height: Int, data: &[u8]) {
+pub fn texture_2d_image_rgba(width: i32, height: i32, data: &[u8]) {
   unsafe {
     glTexImage2D(TEXTURE_2D, 0, RGBA as i32, width, height, 0, RGBA, UNSIGNED_BYTE, data.as_ptr() as *const Void);
   }
@@ -493,6 +493,61 @@ pub const TEXTURE0: Enum = 0x84C0;
 pub fn active_texture(texture_unit: Enum) {
   unsafe {
     glActiveTexture(texture_unit);
+  }
+}
+
+pub type Buffer = UInt;
+
+pub fn generate_buffers(count: i32) -> Vec<Buffer> {
+  let mut buffers = vec![0; count as usize];
+  unsafe {
+    glGenBuffers(count, buffers.as_mut_ptr());
+  }
+  buffers
+}
+
+// Buffer targets for binding:
+const ARRAY_BUFFER: Enum = 0x8892;
+const ELEMENT_ARRAY_BUFFER: Enum = 0x8893;
+
+pub fn bind_array_buffer(buffer: Buffer) {
+  unsafe {
+    glBindBuffer(ARRAY_BUFFER, buffer);
+  }
+}
+
+pub fn unbind_array_buffer() {
+  unsafe {
+    glBindBuffer(ARRAY_BUFFER, 0);
+  }
+}
+
+pub fn bind_index_buffer(buffer: Buffer) {
+  unsafe {
+    glBindBuffer(ELEMENT_ARRAY_BUFFER, buffer);
+  }
+}
+
+pub fn unbind_index_buffer() {
+  unsafe {
+    glBindBuffer(ELEMENT_ARRAY_BUFFER, 0);
+  }
+}
+
+pub fn array_buffer_data_coords(data: &[Coords]) {
+  let size_in_bytes = data.len() as SizeIPtr * Coords::size_bytes() as SizeIPtr;
+  unsafe {
+    glBufferData(ARRAY_BUFFER, size_in_bytes, data.as_ptr() as *const Void, STATIC_DRAW);
+  }
+}
+
+// Usage types:
+const STATIC_DRAW: Enum = 0x88E4;
+
+pub fn index_buffer_data_u16(data: &[u16]) {
+  let size_in_bytes = data.len() as SizeIPtr * 2;
+  unsafe {
+    glBufferData(ELEMENT_ARRAY_BUFFER, size_in_bytes, data.as_ptr() as *const Void, STATIC_DRAW);
   }
 }
 
@@ -536,6 +591,9 @@ extern "C" {
   fn glTexImage2D(target: Enum, level: Int, internal_format: Int, width: SizeI, height: SizeI, border: Int, format: Enum, data_type: Enum, data: *const Void);
   fn glGenerateMipmap(target: Enum);
   fn glActiveTexture(texture_unit: Enum);
+  fn glGenBuffers(count: SizeI, buffers: *mut UInt);
+  fn glBindBuffer(target: Enum, buffer: UInt);
+  fn glBufferData(target: Enum, size: SizeIPtr, data: *const c_void, usage: Enum);
 }
 
 #[cfg(target_os = "linux")]
@@ -578,4 +636,7 @@ extern "C" {
   fn glTexImage2D(target: Enum, level: Int, internal_format: Int, width: SizeI, height: SizeI, border: Int, format: Enum, data_type: Enum, data: *const Void);
   fn glGenerateMipmap(target: Enum);
   fn glActiveTexture(texture_unit: Enum);
+  fn glGenBuffers(count: SizeI, buffers: *mut UInt);
+  fn glBindBuffer(target: Enum, buffer: UInt);
+  fn glBufferData(target: Enum, size: SizeIPtr, data: *const c_void, usage: Enum);
 }

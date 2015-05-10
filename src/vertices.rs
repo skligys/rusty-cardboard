@@ -1,7 +1,7 @@
 use std::u16;
 
 use mesh::Coords;
-use program::{VertexArrayF32, VertexArrayU16};
+use program::VertexArray;
 
 pub struct Vertices {
   coords: Vec<Coords>,
@@ -29,21 +29,23 @@ impl Vertices {
     self.indices.push_all(&shift(indices, old_vertex_count as u16));
   }
 
-  pub fn vertex_count(&self) -> usize {
+  pub fn coords(&self) -> &[Coords] {
+    &self.coords[..]
+  }
+
+  pub fn coord_count(&self) -> usize {
     self.coords.len()
   }
 
-  pub fn position_coord_array(&self) -> VertexArrayF32 {
-    VertexArrayF32 {
-      data: self.coords[0].xyz.as_ptr(),
+  pub fn position_coord_array(&self) -> VertexArray {
+    VertexArray {
       components: 3,
       stride: Coords::size_bytes(),
     }
   }
 
-  pub fn texture_coord_array(&self) -> VertexArrayU16 {
-    VertexArrayU16 {
-      data: self.coords[0].st.as_ptr(),
+  pub fn texture_coord_array(&self) -> VertexArray {
+    VertexArray {
       components: 2,
       stride: Coords::size_bytes(),
     }
@@ -51,6 +53,10 @@ impl Vertices {
 
   pub fn indices(&self) -> &[u16] {
     &self.indices[..]
+  }
+
+  pub fn index_count(&self) -> usize {
+    self.indices.len()
   }
 }
 
