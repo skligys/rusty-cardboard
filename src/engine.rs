@@ -2,7 +2,6 @@ extern crate cgmath;
 extern crate png;
 
 use std::default::Default;
-use std::f64;
 use time;
 
 use cgmath::{Matrix4, Point, Point3, Vector3};
@@ -317,8 +316,6 @@ fn generate_chunk_of_perlin() -> World {
   let y_max = 7;
   let y_range = y_max - y_min;
 
-  let mut min = f64::MAX;
-  let mut max = f64::MIN;
   let mut world: World = Default::default();
 
   for y in y_min..(y_max + 1) {
@@ -328,13 +325,6 @@ fn generate_chunk_of_perlin() -> World {
       for z in -8..8 {
         let p = [x as f64, y as f64, z as f64];
         let val = noise.apply(&seed, &p);
-
-        if val < min {
-          min = val;
-        }
-        if val > max {
-          max = val;
-        }
 
         // Probablility to have a block added linearly increases from 0.0 at y_max to 1.0 at y_min.
         if 0.5 * (val + 1.0) >= normalized_y {
@@ -346,7 +336,6 @@ fn generate_chunk_of_perlin() -> World {
 
   let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
-  log!("***   min = {}, max = {}", min, max);
 
   world
 }
