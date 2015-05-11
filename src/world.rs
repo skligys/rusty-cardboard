@@ -1,40 +1,58 @@
 use std::collections::HashSet;
 use std::collections::hash_set::Iter;
-use std::default::Default;
+use std::i32;
 
 use cgmath::Point3;
 
 pub type Block = Point3<i32>;
 #[derive(Debug)]
-pub struct World(HashSet<Block>);
-
-impl Default for World {
-  // An empty world.
-  fn default() -> World {
-    World (
-      HashSet::new()
-    )
-  }
+pub struct World {
+  blocks: HashSet<Block>,
+  /// Eye coordinates.
+  eye: Option<Point3<i32>>,
 }
 
 impl World {
-  #[inline]
-  pub fn add(&mut self, block: Block) {
-    self.0.insert(block);
+  pub fn new(blocks: Vec<Block>, eye_x: i32, eye_z: i32) -> World {
+    let eye = place_eye(&blocks, eye_x, eye_z);
+    World {
+      blocks: blocks.into_iter().collect(),
+      eye: eye,
+    }
   }
 
   #[inline]
   pub fn len(&self) -> usize {
-    self.0.len()
+    self.blocks.len()
   }
 
   #[inline]
   pub fn iter(&self) -> Iter<Block> {
-    self.0.iter()
+    self.blocks.iter()
   }
 
   #[inline]
   pub fn contains(&self, block: &Block) -> bool {
-    self.0.contains(block)
+    self.blocks.contains(block)
+  }
+
+  pub fn eye(&self) -> Option<Point3<i32>> {
+    self.eye
+  }
+}
+
+/// Place the eye on top of the highest block among {(x, y, z), ∀y}
+pub fn place_eye(blocks: &Vec<Block>, x: i32, z: i32) -> Option<Point3<i32>> {
+  let mut y = i32::MIN;
+  for b in blocks.iter() {
+    if b.x == x && b.z == z && b.y > y {
+      y = b.y;
+    }
+  }
+  if y > i32::MIN {
+    log!("*** Placed eye at: ({}, {}, {})", x, y, z);
+    Some(Point3::new(x, y, z))
+  } else {
+    None
   }
 }

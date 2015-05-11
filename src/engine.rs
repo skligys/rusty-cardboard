@@ -218,14 +218,19 @@ impl Engine {
 
         match self.engine_impl.program {
           Some(ref p) => {
-            // Compute the composite mvp_matrix and send it to program.  Model matrix
-            // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-            let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
-            p.set_mvp_matrix(mvp_matrix);
-            // Finally, draw the cube mesh.
-            if self.index_buffer > 0 {
-              gl::bind_index_buffer(self.index_buffer);
-              gl::draw_elements_triangles_u16(self.index_count);
+            match self.world.eye() {
+              Some(e) => {
+                // Compute the composite mvp_matrix and send it to program.  Model matrix
+                // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+                let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+                p.set_mvp_matrix(mvp_matrix);
+                // Finally, draw the cube mesh.
+                if self.index_buffer > 0 {
+                  gl::bind_index_buffer(self.index_buffer);
+                  gl::draw_elements_triangles_u16(self.index_count);
+                }
+              },
+              None => (),
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -247,15 +252,20 @@ impl Engine {
 
     let p = &self.engine_impl.program;
 
-    // Compute the composite mvp_matrix and send it to program.  Model matrix
-    // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-    let mvp_matrix = self.projection_matrix * view_matrix(self.angle);
-    p.set_mvp_matrix(mvp_matrix);
+    match self.world.eye() {
+      Some(e) => {
+        // Compute the composite mvp_matrix and send it to program.  Model matrix
+        // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+        let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+        p.set_mvp_matrix(mvp_matrix);
 
-    // Finally, draw the cube mesh.
-    if self.index_buffer > 0 {
-      gl::bind_index_buffer(self.index_buffer);
-      gl::draw_elements_triangles_u16(self.index_count);
+        // Finally, draw the cube mesh.
+        if self.index_buffer > 0 {
+          gl::bind_index_buffer(self.index_buffer);
+          gl::draw_elements_triangles_u16(self.index_count);
+        }
+      },
+      None => (),
     }
 
     self.engine_impl.window.swap_buffers();
@@ -315,7 +325,7 @@ fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: R
   let y_scale = 1.0 / (y_range.end as f64 - 1.0 - y_range.start as f64);
   let y_min = y_range.start as f64;
 
-  let mut world: World = Default::default();
+  let mut blocks = Vec::new();
   for y in y_range {
     // Normalize into [0, 1].
     let normalized_y = (y as f64 - y_min) * y_scale;
@@ -326,11 +336,12 @@ fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: R
 
         // Probablility to have a block added linearly increases from 0.0 at y_max to 1.0 at y_min.
         if 0.5 * (val + 1.0) >= normalized_y {
-          world.add(Block::new(x, y, z));
+          blocks.push(Block::new(x, y, z));
         }
       }
     }
   }
+  let world = World::new(blocks, 0, 0);
 
   let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
@@ -382,26 +393,32 @@ fn upload_vertices(vertices: &Vertices) -> (Buffer, Buffer) {
   }
 }
 
-/// A view matrix, eye is on a 10.0 radius circle starting at (0.0, 2.1, 10.0),
-/// rotating around (0, 1, 0) counter-clockwise and looking at (0, 2.1, 0).
-fn view_matrix(angle: f32) -> Matrix4<f32> {
-  let r = 13.0;
-  let y = 2.1;  // 0.5 for half block under feet + 1.6 up to eye height.
+/// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane counter-clockwise
+/// and looking at (p.x + sin α, p.y + 2.12, p.z + cos α).
+fn view_matrix(p: &Point3<i32>, angle: f32) -> Matrix4<f32> {
+  let y = p.y as f32 + 2.12;  // 0.5 for half block under feet + 1.62 up to eye height.
   let (s, c) = angle.to_radians().sin_cos();
-  let eye = Point3::new(r * s, y, r * c);
-  let center = Point3::new(0.0, y, 0.0);
+
+  let eye = Point3::new(p.x as f32, y, p.z as f32);
+  let center = Point3::new(p.x as f32 + s, y, p.x as f32 + c);
   let up = Vector3::new(0.0, 1.0, 0.0);
   Matrix4::look_at(&eye, &center, &up)
 }
 
+const NEAR_PLANE: f32 = 0.1;
+const FAR_PLANE: f32 = 60.0;
+const FIELD_OF_VIEW_DEGREES: f32 = 70.0;
+
 /// Perspective projection matrix as frustum matrix.
 fn projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
-  let ratio = width as f32 / height as f32;
-  let left = -ratio;
-  let right = ratio;
-  let bottom = -1.0;
-  let top = 1.0;
-  let near = 1.0;
-  let far = 50.0;
+  let inverse_aspect = height as f32 / width as f32;
+  let field_of_view = FIELD_OF_VIEW_DEGREES.to_radians();
+
+  let right = NEAR_PLANE * (field_of_view / 2.0).tan();
+  let left = -right;
+  let top = right * inverse_aspect;
+  let bottom = -top;
+  let near = NEAR_PLANE;
+  let far = FAR_PLANE;
   cgmath::frustum(left, right, bottom, top, near, far)
 }
