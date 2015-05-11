@@ -43,6 +43,12 @@ pub struct EngineImpl {
   pub program: Program,
 }
 
+struct Buffers {
+  vertex_buffer: Buffer,
+  index_buffer: Buffer,
+  index_count: i32,
+}
+
 pub struct Engine {
   engine_impl: EngineImpl,
   animating: bool,
@@ -52,8 +58,7 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
-  index_buffer: Buffer,
-  index_count: i32,
+  buffers: Option<Buffers>,
 }
 
 impl Engine {
@@ -66,8 +71,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
-      index_buffer: 0,
-      index_count: 0,
+      buffers: None,
     }
   }
 
@@ -83,8 +87,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
-      index_buffer: 0,
-      index_count: 0,
+      buffers: None,
     }
   }
 
@@ -144,28 +147,23 @@ impl Engine {
   fn load_mesh(&mut self) {
     if let Some(ref mut p) = self.engine_impl.program {
       let vertices = create_mesh_vertices(&self.world);
-      let (vbo, ibo) = upload_vertices(&vertices);
-
-      gl::bind_array_buffer(vbo);
+      let buffers = upload_vertices(&vertices);
+      gl::bind_array_buffer(buffers.vertex_buffer);
       p.set_vertices(&vertices);
 
-      self.index_buffer = ibo;
-      self.index_count = vertices.index_count() as i32;
-      gl::bind_index_buffer(ibo);
+      self.buffers = Some(buffers);
     }
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
     let vertices = create_mesh_vertices(&self.world);
-    let (vbo, ibo) = upload_vertices(&vertices);
+    let buffers = upload_vertices(&vertices);
+    gl::bind_array_buffer(buffers.vertex_buffer);
+    let p = &self.engine_impl.program;
+    p.set_vertices(&vertices);
 
-    gl::bind_array_buffer(vbo);
-    self.engine_impl.program.set_vertices(&vertices);
-
-    self.index_buffer = ibo;
-    self.index_count = vertices.index_count() as i32;
-    gl::bind_index_buffer(ibo);
+    self.buffers = Some(buffers);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -218,19 +216,18 @@ impl Engine {
 
         match self.engine_impl.program {
           Some(ref p) => {
-            match self.world.eye() {
-              Some(e) => {
-                // Compute the composite mvp_matrix and send it to program.  Model matrix
-                // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-                let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
-                p.set_mvp_matrix(mvp_matrix);
-                // Finally, draw the cube mesh.
-                if self.index_buffer > 0 {
-                  gl::bind_index_buffer(self.index_buffer);
-                  gl::draw_elements_triangles_u16(self.index_count);
-                }
-              },
-              None => (),
+            if let Some(e) = self.world.eye() {
+              // Compute the composite mvp_matrix and send it to program.  Model matrix
+              // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+              let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+              p.set_mvp_matrix(mvp_matrix);
+
+              // Finally, draw the cube mesh.
+              if let Some(ref bs) = self.buffers {
+                gl::bind_array_buffer(bs.vertex_buffer);
+                gl::bind_index_buffer(bs.index_buffer);
+                gl::draw_elements_triangles_u16(bs.index_count);
+              }
             }
           },
           None => panic!("Missing program, should never happen"),
@@ -252,20 +249,18 @@ impl Engine {
 
     let p = &self.engine_impl.program;
 
-    match self.world.eye() {
-      Some(e) => {
-        // Compute the composite mvp_matrix and send it to program.  Model matrix
-        // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-        let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
-        p.set_mvp_matrix(mvp_matrix);
+    if let Some(e) = self.world.eye() {
+      // Compute the composite mvp_matrix and send it to program.  Model matrix
+      // is always identity so instead of MVP = P * V * M just do MVP = P * V.
+      let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+      p.set_mvp_matrix(mvp_matrix);
 
-        // Finally, draw the cube mesh.
-        if self.index_buffer > 0 {
-          gl::bind_index_buffer(self.index_buffer);
-          gl::draw_elements_triangles_u16(self.index_count);
-        }
-      },
-      None => (),
+      // Finally, draw the cube mesh.
+      if let Some(ref bs) = self.buffers {
+        gl::bind_array_buffer(bs.vertex_buffer);
+        gl::bind_index_buffer(bs.index_buffer);
+        gl::draw_elements_triangles_u16(bs.index_count);
+      }
     }
 
     self.engine_impl.window.swap_buffers();
@@ -377,7 +372,7 @@ fn translate(coords: &[Coords; 4], block: &Block) -> [Coords; 4] {
   ]
 }
 
-fn upload_vertices(vertices: &Vertices) -> (Buffer, Buffer) {
+fn upload_vertices(vertices: &Vertices) -> Buffers {
   match &gl::generate_buffers(2)[..] {
     [vbo, ibo] => {
       gl::bind_array_buffer(vbo);
@@ -387,7 +382,12 @@ fn upload_vertices(vertices: &Vertices) -> (Buffer, Buffer) {
       gl::bind_index_buffer(ibo);
       gl::index_buffer_data_u16(vertices.indices());
       gl::unbind_index_buffer();
-      (vbo, ibo)
+
+      Buffers {
+        vertex_buffer: vbo,
+        index_buffer: ibo,
+        index_count: vertices.index_count() as i32,
+      }
     },
     _ => panic!("gl::generate_buffers(2) should return 2 buffers"),
   }
