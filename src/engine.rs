@@ -2,6 +2,7 @@ extern crate cgmath;
 extern crate png;
 
 use std::default::Default;
+use std::ops::Range;
 use time;
 
 use cgmath::{Matrix4, Point, Point3, Vector3};
@@ -64,7 +65,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_chunk_of_perlin(),
+      world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
       index_buffer: 0,
       index_count: 0,
     }
@@ -81,7 +82,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_chunk_of_perlin(),
+      world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
       index_buffer: 0,
       index_count: 0,
     }
@@ -306,23 +307,20 @@ impl Engine {
   }
 }
 
-fn generate_chunk_of_perlin() -> World {
+fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: Range<i32>) -> World {
   let start_s = time::precise_time_s();
 
   let seed = Seed::new(1);
   let noise = Brownian3::new(noise::perlin3, 4).wavelength(16.0);
-
-  let y_min = -8;
-  let y_max = 7;
-  let y_range = y_max - y_min;
+  let y_scale = 1.0 / (y_range.end as f64 - 1.0 - y_range.start as f64);
+  let y_min = y_range.start as f64;
 
   let mut world: World = Default::default();
-
-  for y in y_min..(y_max + 1) {
+  for y in y_range {
     // Normalize into [0, 1].
-    let normalized_y = (y as f64 - y_min as f64) / y_range as f64;
-    for x in -8..8 {
-      for z in -8..8 {
+    let normalized_y = (y as f64 - y_min) * y_scale;
+    for x in x_range.clone() {
+      for z in z_range.clone() {
         let p = [x as f64, y as f64, z as f64];
         let val = noise.apply(&seed, &p);
 
