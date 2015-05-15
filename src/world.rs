@@ -5,6 +5,12 @@ use std::i32;
 use cgmath::Point3;
 
 pub type Block = Point3<i32>;
+
+// Has to be odd since (0, 0, 0) is at the center of a chunk.
+pub const CHUNK_SIZE: i32 = 17;
+pub type Chunk = Point3<i32>;
+
+/// World model 𝓦.
 #[derive(Debug)]
 pub struct World {
   blocks: HashSet<Block>,

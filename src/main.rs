@@ -39,6 +39,7 @@ mod egl_context;
 mod engine;
 mod gl;
 mod mesh;
+mod perlin;
 mod program;
 mod world;
 #[cfg(target_os = "linux")]

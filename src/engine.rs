@@ -2,22 +2,38 @@ extern crate cgmath;
 extern crate png;
 
 use std::default::Default;
-use std::ops::Range;
-use time;
 
-use cgmath::{Matrix4, Point3, Vector3};
-use noise;
-use noise::{Brownian3, Seed};
+use cgmath::{Aabb3, Matrix4, Point3, Vector3};
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
+use perlin;
 use program::{Buffers, Program};
-use world::{Block, World};
+use world;
+use world::World;
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
+
+pub const HALF_CHUNK_SIZE: i32 = (world::CHUNK_SIZE - 1) / 2;
+
+lazy_static! {
+  // Bounding 3d box for chunk generated.
+  static ref CHUNK_BOX: Aabb3<i32> = Aabb3 {
+    min: Point3 {
+      x: -HALF_CHUNK_SIZE,
+      y: -HALF_CHUNK_SIZE,
+      z: -HALF_CHUNK_SIZE,
+    },
+    max: Point3 {
+      x: HALF_CHUNK_SIZE,
+      y: HALF_CHUNK_SIZE,
+      z: HALF_CHUNK_SIZE,
+    },
+  };
+}
 
 #[cfg(target_os = "android")]
 pub struct EngineImpl {
@@ -62,7 +78,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
+      world: generate_world(&CHUNK_BOX),
       buffers: None,
     }
   }
@@ -78,7 +94,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_chunk_of_perlin(-8..8, -8..8, -8..8),
+      world: generate_world(&CHUNK_BOX),
       buffers: None,
     }
   }
@@ -298,34 +314,9 @@ impl Engine {
   }
 }
 
-fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: Range<i32>) -> World {
-  let start_s = time::precise_time_s();
-
-  let seed = Seed::new(1);
-  let noise = Brownian3::new(noise::perlin3, 4).wavelength(16.0);
-  let y_scale = 1.0 / (y_range.end as f64 - 1.0 - y_range.start as f64);
-  let y_min = y_range.start as f64;
-
-  let mut blocks = Vec::new();
-  for y in y_range {
-    // Normalize into [0, 1].
-    let normalized_y = (y as f64 - y_min) * y_scale;
-    for x in x_range.clone() {
-      for z in z_range.clone() {
-        let p = [x as f64, y as f64, z as f64];
-        let val = noise.apply(&seed, &p);
-
-        // Probablility to have a block added linearly increases from 0.0 at y_max to 1.0 at y_min.
-        if 0.5 * (val + 1.0) >= normalized_y {
-          blocks.push(Block::new(x, y, z));
-        }
-      }
-    }
-  }
+fn generate_world(boundaries: &Aabb3<i32>) -> World {
+  let blocks = perlin::generate_blocks(boundaries);
   let world = World::new(blocks, 0, 0);
-
-  let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
-  log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
 
   world
 }
