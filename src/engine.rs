@@ -2,38 +2,19 @@ extern crate cgmath;
 extern crate png;
 
 use std::default::Default;
+use time;
 
-use cgmath::{Aabb3, Matrix4, Point3, Vector3};
+use cgmath::{Matrix4, Point3, Vector3};
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
 use gl;
 use gl::Texture;
 use mesh;
-use perlin;
 use program::{Buffers, Program};
-use world;
-use world::World;
+use world::{Chunk, Point2, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
-
-pub const HALF_CHUNK_SIZE: i32 = (world::CHUNK_SIZE - 1) / 2;
-
-lazy_static! {
-  // Bounding 3d box for chunk generated.
-  static ref CHUNK_BOX: Aabb3<i32> = Aabb3 {
-    min: Point3 {
-      x: -HALF_CHUNK_SIZE,
-      y: -HALF_CHUNK_SIZE,
-      z: -HALF_CHUNK_SIZE,
-    },
-    max: Point3 {
-      x: HALF_CHUNK_SIZE,
-      y: HALF_CHUNK_SIZE,
-      z: HALF_CHUNK_SIZE,
-    },
-  };
-}
 
 #[cfg(target_os = "android")]
 pub struct EngineImpl {
@@ -78,7 +59,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_world(&CHUNK_BOX),
+      world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
       buffers: None,
     }
   }
@@ -94,7 +75,7 @@ impl Engine {
       angle: 0.0,
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
-      world: generate_world(&CHUNK_BOX),
+      world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
       buffers: None,
     }
   }
@@ -153,19 +134,35 @@ impl Engine {
 
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
+    let start_s = time::precise_time_s();
+    log!("*** Loading mesh...");
+
     if let Some(ref mut p) = self.engine_impl.program {
-      let vertices = mesh::create_mesh_vertices(&self.world);
+      let vertices = mesh::create_mesh_vertices(
+        self.world.chunk_blocks(&Chunk::new(0, 0, 0)).unwrap(),
+        &self.world);
       let buffers = p.upload_vertices(&vertices);
       self.buffers = Some(buffers);
     }
+
+    let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
+    log!("*** Loaded mesh: {:.3}ms, 1 chunk", spent_ms);
   }
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let vertices = mesh::create_mesh_vertices(&self.world);
+    let start_s = time::precise_time_s();
+    log!("*** Loading mesh...");
+
+    let vertices = mesh::create_mesh_vertices(
+        self.world.chunk_blocks(&Chunk::new(0, 0, 0)).unwrap(),
+        &self.world);
     let p = &self.engine_impl.program;
     let buffers = p.upload_vertices(&vertices);
     self.buffers = Some(buffers);
+
+    let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
+    log!("*** Loaded mesh: {:.3}ms, 1 chunk", spent_ms);
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -312,13 +309,6 @@ impl Engine {
   pub fn poll_events(&self) -> PollEventsIterator {
     self.engine_impl.window.poll_events()
   }
-}
-
-fn generate_world(boundaries: &Aabb3<i32>) -> World {
-  let blocks = perlin::generate_blocks(boundaries);
-  let world = World::new(blocks, 0, 0);
-
-  world
 }
 
 /// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane counter-clockwise

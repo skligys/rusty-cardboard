@@ -5,12 +5,12 @@ use cgmath::{Point, Vector3};
 use program::VertexArray;
 use world::{Block, World};
 
-/// This has to have C layout since it is read by the OOpenGL driver via a pointer passed to it.
+/// This has to have C layout since it is read by the OpenGL driver via a pointer passed to it.
 #[repr(C)]
 #[derive(Clone)]
 pub struct Coords {
-  pub xyz: [f32; 3],
-  pub st: [u16; 2]
+  xyz: [f32; 3],
+  st: [u16; 2]
 }
 
 impl Coords {
@@ -255,9 +255,9 @@ fn shift(indices: &[u16; 6], by: u16) -> [u16; 6] {
   ]
 }
 
-pub fn create_mesh_vertices(world: &World) -> Vertices {
+pub fn create_mesh_vertices(blocks: &Vec<Block>, world: &World) -> Vertices {
   let mut vertices = Vertices::new(world.len());
-  for block in world.iter() {
+  for block in blocks {
     // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
     for face in CUBE_FACES.iter() {
       if !world.contains(&block.add_v(&face.direction)) {
