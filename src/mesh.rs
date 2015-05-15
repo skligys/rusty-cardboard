@@ -1,4 +1,9 @@
-use cgmath::Vector3;
+use std::u16;
+
+use cgmath::{Point, Vector3};
+
+use program::VertexArray;
+use world::{Block, World};
 
 /// This has to have C layout since it is read by the OOpenGL driver via a pointer passed to it.
 #[repr(C)]
@@ -40,13 +45,13 @@ pub struct CubeFace {
 /// Cube faces in standard order: left, right, down, up, forward, back.
 lazy_static! {
   // Position indices, point to face coordinates to form 2 counter-clockwise triangles.
-  pub static ref INDICES: [u16; 6] = [
+  static ref INDICES: [u16; 6] = [
     0, 1, 3,
     3, 1, 2,
   ];
 
   // 6 cube faces in canonical order: left, right, down, up, forward, back.
-  pub static ref CUBE_FACES: [CubeFace; 6] = [
+  static ref CUBE_FACES: [CubeFace; 6] = [
     // Left.
     CubeFace {
       coords: [
@@ -180,4 +185,100 @@ lazy_static! {
       direction: Vector3::new(0, 0, 1),
     },
   ];
+}
+
+pub struct Vertices {
+  coords: Vec<Coords>,
+  indices: Vec<u16>,
+}
+
+impl Vertices {
+  pub fn new(cube_count: usize) -> Vertices {
+    Vertices {
+      // If the world nas N cubes in it, the mesh may have up to 6 * N faces
+      // and up to 6 * 4 * N vertices.  Set capacity to half of that since some
+      // faces will be hidden.
+      coords: Vec::with_capacity(12 * cube_count),
+      // Up to 6 * 6 * N indices, halve it.
+      indices: Vec::with_capacity(18 * cube_count),
+    }
+  }
+
+  pub fn add(&mut self, coords: &[Coords; 4], indices: &[u16; 6]) {
+    let old_vertex_count = self.coords.len();
+    let new_vertex_count = old_vertex_count + 4;
+    assert!(new_vertex_count <= u16::MAX as usize, "Too many vertices: {}", new_vertex_count);
+
+    self.coords.push_all(coords);
+    self.indices.push_all(&shift(indices, old_vertex_count as u16));
+  }
+
+  pub fn coords(&self) -> &[Coords] {
+    &self.coords[..]
+  }
+
+  pub fn coord_count(&self) -> usize {
+    self.coords.len()
+  }
+
+  pub fn position_coord_array(&self) -> VertexArray {
+    VertexArray {
+      components: 3,
+      stride: Coords::size_bytes(),
+    }
+  }
+
+  pub fn texture_coord_array(&self) -> VertexArray {
+    VertexArray {
+      components: 2,
+      stride: Coords::size_bytes(),
+    }
+  }
+
+  pub fn indices(&self) -> &[u16] {
+    &self.indices[..]
+  }
+
+  pub fn index_count(&self) -> usize {
+    self.indices.len()
+  }
+}
+
+fn shift(indices: &[u16; 6], by: u16) -> [u16; 6] {
+  [
+    indices[0] + by,
+    indices[1] + by,
+    indices[2] + by,
+    indices[3] + by,
+    indices[4] + by,
+    indices[5] + by,
+  ]
+}
+
+pub fn create_mesh_vertices(world: &World) -> Vertices {
+  let mut vertices = Vertices::new(world.len());
+  for block in world.iter() {
+    // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
+    for face in CUBE_FACES.iter() {
+      if !world.contains(&block.add_v(&face.direction)) {
+        vertices.add(&translate(&face.coords, block), &INDICES);
+      }
+    }
+  }
+  vertices
+}
+
+/// Accepts vertex and texture coordinates.  Translates vertex coordinates only along the vector
+// corresponding to the block center position.
+fn translate(coords: &[Coords; 4], block: &Block) -> [Coords; 4] {
+  let x = block.x as f32;
+  let y = block.y as f32;
+  let z = block.z as f32;
+
+  [
+    coords[0].translate(x, y, z),
+    coords[1].translate(x, y, z),
+    coords[2].translate(x, y, z),
+    coords[3].translate(x, y, z),
+  ]
 }

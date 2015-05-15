@@ -4,8 +4,7 @@ use cgmath::Matrix4;
 
 use gl;
 use gl::{AttribLoc, Enum, UnifLoc};
-use mesh::Coords;
-use vertices::Vertices;
+use mesh::{Coords, Vertices};
 
 pub struct VertexArray {
   pub components: u32,

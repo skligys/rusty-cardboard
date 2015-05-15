@@ -5,7 +5,7 @@ use std::default::Default;
 use std::ops::Range;
 use time;
 
-use cgmath::{Matrix4, Point, Point3, Vector3};
+use cgmath::{Matrix4, Point3, Vector3};
 use noise;
 use noise::{Brownian3, Seed};
 
@@ -14,9 +14,8 @@ use egl_context::EglContext;
 use gl;
 use gl::{Buffer, Texture};
 use mesh;
-use mesh::Coords;
+use mesh::Vertices;
 use program::Program;
-use vertices::Vertices;
 use world::{Block, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
@@ -146,7 +145,7 @@ impl Engine {
   #[cfg(target_os = "android")]
   fn load_mesh(&mut self) {
     if let Some(ref mut p) = self.engine_impl.program {
-      let vertices = create_mesh_vertices(&self.world);
+      let vertices = mesh::create_mesh_vertices(&self.world);
       let buffers = upload_vertices(&vertices);
       gl::bind_array_buffer(buffers.vertex_buffer);
       p.set_vertices(&vertices);
@@ -157,7 +156,7 @@ impl Engine {
 
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
-    let vertices = create_mesh_vertices(&self.world);
+    let vertices = mesh::create_mesh_vertices(&self.world);
     let buffers = upload_vertices(&vertices);
     gl::bind_array_buffer(buffers.vertex_buffer);
     let p = &self.engine_impl.program;
@@ -342,34 +341,6 @@ fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: R
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
 
   world
-}
-
-fn create_mesh_vertices(world: &World) -> Vertices {
-  let mut vertices = Vertices::new(world.len());
-  for block in world.iter() {
-    // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
-    for face in mesh::CUBE_FACES.iter() {
-      if !world.contains(&block.add_v(&face.direction)) {
-        vertices.add(&translate(&face.coords, block), &mesh::INDICES);
-      }
-    }
-  }
-  vertices
-}
-
-/// Accepts vertex and texture coordinates.  Translates vertex coordinates only along the vector
-// corresponding to the block center position.
-fn translate(coords: &[Coords; 4], block: &Block) -> [Coords; 4] {
-  let x = block.x as f32;
-  let y = block.y as f32;
-  let z = block.z as f32;
-
-  [
-    coords[0].translate(x, y, z),
-    coords[1].translate(x, y, z),
-    coords[2].translate(x, y, z),
-    coords[3].translate(x, y, z),
-  ]
 }
 
 fn upload_vertices(vertices: &Vertices) -> Buffers {
