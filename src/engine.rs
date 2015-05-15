@@ -12,10 +12,9 @@ use noise::{Brownian3, Seed};
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
 use gl;
-use gl::{Buffer, Texture};
+use gl::Texture;
 use mesh;
-use mesh::Vertices;
-use program::Program;
+use program::{Buffers, Program};
 use world::{Block, World};
 #[cfg(target_os = "linux")]
 use x11::{PollEventsIterator, XWindow};
@@ -40,12 +39,6 @@ impl Default for EngineImpl {
 pub struct EngineImpl {
   pub window: XWindow,
   pub program: Program,
-}
-
-struct Buffers {
-  vertex_buffer: Buffer,
-  index_buffer: Buffer,
-  index_count: i32,
 }
 
 pub struct Engine {
@@ -146,10 +139,7 @@ impl Engine {
   fn load_mesh(&mut self) {
     if let Some(ref mut p) = self.engine_impl.program {
       let vertices = mesh::create_mesh_vertices(&self.world);
-      let buffers = upload_vertices(&vertices);
-      gl::bind_array_buffer(buffers.vertex_buffer);
-      p.set_vertices(&vertices);
-
+      let buffers = p.upload_vertices(&vertices);
       self.buffers = Some(buffers);
     }
   }
@@ -157,11 +147,8 @@ impl Engine {
   #[cfg(target_os = "linux")]
   fn load_mesh(&mut self) {
     let vertices = mesh::create_mesh_vertices(&self.world);
-    let buffers = upload_vertices(&vertices);
-    gl::bind_array_buffer(buffers.vertex_buffer);
     let p = &self.engine_impl.program;
-    p.set_vertices(&vertices);
-
+    let buffers = p.upload_vertices(&vertices);
     self.buffers = Some(buffers);
   }
 
@@ -341,27 +328,6 @@ fn generate_chunk_of_perlin(x_range: Range<i32>, y_range: Range<i32>, z_range: R
   log!("*** Generating a chunk of perlin: {:.3}ms, {} blocks", spent_ms, world.len());
 
   world
-}
-
-fn upload_vertices(vertices: &Vertices) -> Buffers {
-  match &gl::generate_buffers(2)[..] {
-    [vbo, ibo] => {
-      gl::bind_array_buffer(vbo);
-      gl::array_buffer_data_coords(vertices.coords());
-      gl::unbind_array_buffer();
-
-      gl::bind_index_buffer(ibo);
-      gl::index_buffer_data_u16(vertices.indices());
-      gl::unbind_index_buffer();
-
-      Buffers {
-        vertex_buffer: vbo,
-        index_buffer: ibo,
-        index_count: vertices.index_count() as i32,
-      }
-    },
-    _ => panic!("gl::generate_buffers(2) should return 2 buffers"),
-  }
 }
 
 /// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane counter-clockwise

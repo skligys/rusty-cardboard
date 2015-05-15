@@ -534,6 +534,12 @@ pub fn unbind_index_buffer() {
   }
 }
 
+pub fn delete_buffers(buffers: &[Buffer]) {
+  unsafe {
+    glDeleteBuffers(buffers.len() as i32, buffers.as_ptr());
+  }
+}
+
 pub fn array_buffer_data_coords(data: &[Coords]) {
   let size_in_bytes = data.len() as SizeIPtr * Coords::size_bytes() as SizeIPtr;
   unsafe {
@@ -594,6 +600,7 @@ extern "C" {
   fn glGenBuffers(count: SizeI, buffers: *mut UInt);
   fn glBindBuffer(target: Enum, buffer: UInt);
   fn glBufferData(target: Enum, size: SizeIPtr, data: *const c_void, usage: Enum);
+  fn glDeleteBuffers(count: SizeI, buffers: *const UInt);
 }
 
 #[cfg(target_os = "linux")]
@@ -639,4 +646,5 @@ extern "C" {
   fn glGenBuffers(count: SizeI, buffers: *mut UInt);
   fn glBindBuffer(target: Enum, buffer: UInt);
   fn glBufferData(target: Enum, size: SizeIPtr, data: *const c_void, usage: Enum);
+  fn glDeleteBuffers(count: SizeI, buffers: *const UInt);
 }

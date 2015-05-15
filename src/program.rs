@@ -3,12 +3,27 @@ use std::{error, fmt};
 use cgmath::Matrix4;
 
 use gl;
-use gl::{AttribLoc, Enum, UnifLoc};
+use gl::{AttribLoc, Buffer, Enum, UnifLoc};
 use mesh::{Coords, Vertices};
 
 pub struct VertexArray {
   pub components: u32,
   pub stride: u32,
+}
+
+pub struct Buffers {
+  pub vertex_buffer: Buffer,
+  pub index_buffer: Buffer,
+  pub index_count: i32,
+}
+
+impl Drop for Buffers {
+  fn drop(&mut self) {
+    // Debug.
+    log!("*** Deleting buffers: {}, {}", self.vertex_buffer, self.index_buffer);
+
+    gl::delete_buffers(&[self.vertex_buffer, self.index_buffer]);
+  }
 }
 
 pub struct Program {
@@ -93,9 +108,11 @@ impl Program {
     Ok(program)
   }
 
-  /// Set the vertex attributes for position and texture coordinate.
-  /// Uses the current VBO set in gl::bind_array_buffer() to get data.
-  pub fn set_vertices(&self, vertices: &Vertices) {
+  /// Uploads given vertices into GPU, returns handles to OpenGL buffers.
+  pub fn upload_vertices(&self, vertices: &Vertices) -> Buffers {
+    let buffers = upload_vertices(&vertices);
+    gl::bind_array_buffer(buffers.vertex_buffer);
+
     let position_coords = vertices.position_coord_array();
     gl::vertex_attrib_pointer_f32(self.position, position_coords.components as i32,
       position_coords.stride as i32, 0);
@@ -110,6 +127,8 @@ impl Program {
     log!("*** Triangle count: {}, vertex count: {}, bytes: {}",
       vertices.coord_count() / 2, vertices.coord_count(),
       vertices.coord_count() * Coords::size_bytes() as usize);
+
+    buffers
   }
 
   pub fn set_mvp_matrix(&self, mvp_matrix: Matrix4<f32>) {
@@ -192,3 +211,24 @@ static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.gles.glsl")
 static VERTEX_SHADER: &'static str = include_str!("vertex_shader.mesa.glsl");
 #[cfg(target_os = "linux")]
 static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.mesa.glsl");
+
+fn upload_vertices(vertices: &Vertices) -> Buffers {
+  match &gl::generate_buffers(2)[..] {
+    [vbo, ibo] => {
+      gl::bind_array_buffer(vbo);
+      gl::array_buffer_data_coords(vertices.coords());
+      gl::unbind_array_buffer();
+
+      gl::bind_index_buffer(ibo);
+      gl::index_buffer_data_u16(vertices.indices());
+      gl::unbind_index_buffer();
+
+      Buffers {
+        vertex_buffer: vbo,
+        index_buffer: ibo,
+        index_count: vertices.index_count() as i32,
+      }
+    },
+    _ => panic!("gl::generate_buffers(2) should return 2 buffers"),
+  }
+}
