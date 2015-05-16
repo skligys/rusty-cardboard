@@ -737,7 +737,7 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
         KEY_PRESS | KEY_RELEASE => {
           println!("X11 event: KEY_PRESS or KEY_RELEASE");
-          let event: &mut XKeyEvent = unsafe { mem::transmute(&x_event) };
+          let event: &XKeyEvent = unsafe { mem::transmute(&x_event) };
 
           if event.type_ == KEY_PRESS {
             if filter_event(&x_event, self.window.window) {
