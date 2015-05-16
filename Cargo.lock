@@ -3,7 +3,7 @@ name = "RustyCardboard"
 version = "0.1.0"
 dependencies = [
  "android_glue 0.0.2 (git+https://github.com/skligys/android-rs-glue)",
- "cgmath 0.1.5 (git+https://github.com/bjz/cgmath-rs.git)",
+ "cgmath 0.2.0 (git+https://github.com/bjz/cgmath-rs.git)",
  "lazy_static 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "noise 0.1.5 (git+https://github.com/bjz/noise-rs.git)",
@@ -14,12 +14,12 @@ dependencies = [
 [[package]]
 name = "android_glue"
 version = "0.0.2"
-source = "git+https://github.com/skligys/android-rs-glue#10116eb3af332f9565e0fb803e600511bb585d6b"
+source = "git+https://github.com/skligys/android-rs-glue#dc8aef3e1b8f1acd141986cfab492e3f57d2d5f6"
 
 [[package]]
 name = "cgmath"
-version = "0.1.5"
-source = "git+https://github.com/bjz/cgmath-rs.git#d2975cc0682bdddb6aa3f63cdd802c720533e299"
+version = "0.2.0"
+source = "git+https://github.com/bjz/cgmath-rs.git#aebe5fd9bfb2daa468754a19a1eac02aa8f959e8"
 dependencies = [
  "num 0.1.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
