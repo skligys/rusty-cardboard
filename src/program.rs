@@ -13,6 +13,12 @@ pub struct VertexArray {
 
 pub struct Buffers {
   pub vertex_buffer: Buffer,
+  position_coord_components: i32,
+  position_coord_stride: i32,
+  position_coord_offset: u32,
+  texture_coord_components: i32,
+  texture_coord_stride: i32,
+  texture_coord_offset: u32,
   pub index_buffer: Buffer,
   pub index_count: i32,
 }
@@ -110,25 +116,67 @@ impl Program {
 
   /// Uploads given vertices into GPU, returns handles to OpenGL buffers.
   pub fn upload_vertices(&self, vertices: &Vertices) -> Buffers {
-    let buffers = upload_vertices(&vertices);
-    gl::bind_array_buffer(buffers.vertex_buffer);
+    let buffers = gl::generate_buffers(2);
+    if let [vbo, ibo] = &buffers[..] {
+      gl::bind_array_buffer(vbo);
+      gl::array_buffer_data_coords(vertices.coords());
 
-    let position_coords = vertices.position_coord_array();
-    gl::vertex_attrib_pointer_f32(self.position, position_coords.components as i32,
-      position_coords.stride as i32, 0);
+      gl::bind_index_buffer(ibo);
+      gl::index_buffer_data_u16(vertices.indices());
+
+      let position_coords = vertices.position_coord_array();
+      let texture_coords = vertices.texture_coord_array();
+      let buffers = Buffers {
+        vertex_buffer: vbo,
+        position_coord_components: position_coords.components as i32,
+        position_coord_stride: position_coords.stride as i32,
+        position_coord_offset: 0,
+        texture_coord_components: texture_coords.components as i32,
+        texture_coord_stride: texture_coords.stride as i32,
+        texture_coord_offset: Coords::texture_offset(),
+        index_buffer: ibo,
+        index_count: vertices.index_count() as i32,
+      };
+
+      gl::vertex_attrib_pointer_f32(self.position, buffers.position_coord_components,
+        buffers.position_coord_stride, buffers.position_coord_offset);
+      gl::enable_vertex_attrib_array(self.position);
+
+      gl::vertex_attrib_pointer_u16(self.texture_coord, buffers.texture_coord_components,
+        buffers.texture_coord_stride, buffers.texture_coord_offset);
+      gl::enable_vertex_attrib_array(self.texture_coord);
+
+      gl::unbind_array_buffer();
+      gl::unbind_index_buffer();
+
+      // Debug:
+      log!("*** Triangle count: {}, vertex count: {}, bytes: {}",
+        vertices.coord_count() / 2, vertices.coord_count(),
+        vertices.coord_count() * Coords::size_bytes() as usize);
+      buffers
+    } else {
+      panic!("gl::generate_buffers(2) should return 2 buffers");
+    }
+  }
+
+  pub fn bind_buffers(&self, buffers: &Buffers) {
+    gl::bind_array_buffer(buffers.vertex_buffer);
+    gl::vertex_attrib_pointer_f32(self.position, buffers.position_coord_components,
+      buffers.position_coord_stride, buffers.position_coord_offset);
     gl::enable_vertex_attrib_array(self.position);
 
-    let texture_coords = vertices.texture_coord_array();
-    gl::vertex_attrib_pointer_u16(self.texture_coord, texture_coords.components as i32,
-      texture_coords.stride as i32, Coords::texture_offset());
+    gl::bind_index_buffer(buffers.index_buffer);
+    gl::vertex_attrib_pointer_u16(self.texture_coord, buffers.texture_coord_components,
+      buffers.texture_coord_stride, buffers.texture_coord_offset);
     gl::enable_vertex_attrib_array(self.texture_coord);
+  }
 
-    // Debug:
-    log!("*** Triangle count: {}, vertex count: {}, bytes: {}",
-      vertices.coord_count() / 2, vertices.coord_count(),
-      vertices.coord_count() * Coords::size_bytes() as usize);
+  pub fn unbind_buffers(&self) {
+    gl::disable_vertex_attrib_array(self.position);
+    gl::unbind_array_buffer();
 
-    buffers
+    gl::disable_vertex_attrib_array(self.texture_coord);
+    gl::unbind_index_buffer();
   }
 
   pub fn set_mvp_matrix(&self, mvp_matrix: Matrix4<f32>) {
@@ -211,24 +259,3 @@ static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.gles.glsl")
 static VERTEX_SHADER: &'static str = include_str!("vertex_shader.mesa.glsl");
 #[cfg(target_os = "linux")]
 static FRAGMENT_SHADER: &'static str = include_str!("fragment_shader.mesa.glsl");
-
-fn upload_vertices(vertices: &Vertices) -> Buffers {
-  match &gl::generate_buffers(2)[..] {
-    [vbo, ibo] => {
-      gl::bind_array_buffer(vbo);
-      gl::array_buffer_data_coords(vertices.coords());
-      gl::unbind_array_buffer();
-
-      gl::bind_index_buffer(ibo);
-      gl::index_buffer_data_u16(vertices.indices());
-      gl::unbind_index_buffer();
-
-      Buffers {
-        vertex_buffer: vbo,
-        index_buffer: ibo,
-        index_count: vertices.index_count() as i32,
-      }
-    },
-    _ => panic!("gl::generate_buffers(2) should return 2 buffers"),
-  }
-}

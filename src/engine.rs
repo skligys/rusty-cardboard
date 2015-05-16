@@ -1,6 +1,7 @@
 extern crate cgmath;
 extern crate png;
 
+use std::collections::HashMap;
 use std::default::Default;
 use time;
 
@@ -47,7 +48,7 @@ pub struct Engine {
   /// Texture atlas.
   texture: Texture,
   world: World,
-  buffers: Option<Buffers>,
+  buffers: HashMap<Chunk, Buffers>,
 }
 
 impl Engine {
@@ -60,7 +61,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
-      buffers: None,
+      buffers: HashMap::new(),
     }
   }
 
@@ -76,7 +77,7 @@ impl Engine {
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
-      buffers: None,
+      buffers: HashMap::new(),
     }
   }
 
@@ -129,40 +130,42 @@ impl Engine {
     gl::active_texture(gl::TEXTURE0);
     gl::bind_texture_2d(self.texture);
 
-    self.load_mesh();
+    self.load_meshes();
   }
 
   #[cfg(target_os = "android")]
-  fn load_mesh(&mut self) {
+  fn load_meshes(&mut self) {
     let start_s = time::precise_time_s();
-    log!("*** Loading mesh...");
+    log!("*** Loading meshes...");
 
     if let Some(ref mut p) = self.engine_impl.program {
-      let vertices = mesh::create_mesh_vertices(
-        self.world.chunk_blocks(&Chunk::new(0, 0, 0)).unwrap(),
-        &self.world);
-      let buffers = p.upload_vertices(&vertices);
-      self.buffers = Some(buffers);
+      for (c, bs) in self.world.chunk_blocks() {
+        let vertices = mesh::create_mesh_vertices(bs, &self.world);
+        let buffers = p.upload_vertices(&vertices);
+        let c = (*c).clone();
+        self.buffers.insert(c, buffers);
+      }
     }
 
     let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
-    log!("*** Loaded mesh: {:.3}ms, 1 chunk", spent_ms);
+    log!("*** Loaded meshes: {:.3}ms, {} chunks", spent_ms, self.buffers.len());
   }
 
   #[cfg(target_os = "linux")]
-  fn load_mesh(&mut self) {
+  fn load_meshes(&mut self) {
     let start_s = time::precise_time_s();
-    log!("*** Loading mesh...");
+    log!("*** Loading meshes...");
 
-    let vertices = mesh::create_mesh_vertices(
-        self.world.chunk_blocks(&Chunk::new(0, 0, 0)).unwrap(),
-        &self.world);
     let p = &self.engine_impl.program;
-    let buffers = p.upload_vertices(&vertices);
-    self.buffers = Some(buffers);
+    for (c, bs) in self.world.chunk_blocks() {
+      let vertices = mesh::create_mesh_vertices(bs, &self.world);
+      let buffers = p.upload_vertices(&vertices);
+      let c = (*c).clone();
+      self.buffers.insert(c, buffers);
+    }
 
     let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
-    log!("*** Loaded mesh: {:.3}ms, 1 chunk", spent_ms);
+    log!("*** Loaded meshes: {:.3}ms, {} chunks", spent_ms, self.buffers.len());
   }
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
@@ -222,10 +225,11 @@ impl Engine {
               p.set_mvp_matrix(mvp_matrix);
 
               // Finally, draw the cube mesh.
-              if let Some(ref bs) = self.buffers {
-                gl::bind_array_buffer(bs.vertex_buffer);
-                gl::bind_index_buffer(bs.index_buffer);
+              // TODO: Draw only meshes for only visible chunks within FOV.
+              for bs in self.buffers.values() {
+                p.bind_buffers(bs);
                 gl::draw_elements_triangles_u16(bs.index_count);
+                p.unbind_buffers();
               }
             }
           },
@@ -254,11 +258,12 @@ impl Engine {
       let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
       p.set_mvp_matrix(mvp_matrix);
 
-      // Finally, draw the cube mesh.
-      if let Some(ref bs) = self.buffers {
-        gl::bind_array_buffer(bs.vertex_buffer);
-        gl::bind_index_buffer(bs.index_buffer);
+      // Finally, draw the cube meshes for all chunks.
+      // TODO: Draw only meshes for only visible chunks within FOV.
+      for bs in self.buffers.values() {
+        p.bind_buffers(bs);
         gl::draw_elements_triangles_u16(bs.index_count);
+        p.unbind_buffers();
       }
     }
 

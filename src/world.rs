@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map;
 use std::ops::Range;
 use time;
 
@@ -11,7 +12,7 @@ pub type Block = Point3<i32>;
 // Has to be odd since (0, 0, 0) is at the center of a chunk.
 pub const CHUNK_SIZE: i32 = 17;
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Chunk(Point3<i32>);
 
 impl Chunk {
@@ -150,8 +151,9 @@ impl World {
     self.blocks.len()
   }
 
-  pub fn chunk_blocks(&self, c: &Chunk) -> Option<&Vec<Block>> {
-    self.chunk_blocks.get(c)
+  #[inline]
+  pub fn chunk_blocks(&self) -> hash_map::Iter<Chunk, Vec<Block>> {
+    self.chunk_blocks.iter()
   }
 
   #[inline]
@@ -159,6 +161,7 @@ impl World {
     self.blocks.contains(block)
   }
 
+  #[inline]
   pub fn eye(&self) -> Option<Point3<i32>> {
     self.eye
   }
