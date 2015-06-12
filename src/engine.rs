@@ -41,7 +41,7 @@ pub struct EngineImpl {
 
 /// Field of view.
 pub struct Fov {
-  angle: f32,  // in degrees.
+  angle: f32,  // in xz plane, in degrees from (0, 0, -1).
 }
 
 impl Fov {
@@ -331,14 +331,16 @@ impl Engine {
   }
 }
 
-/// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane counter-clockwise
-/// and looking at (p.x + sin α, p.y + 2.12, p.z + cos α).
+/// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane clockwise
+/// (thus the world is rotating counter-clockwise) and looking at
+/// (p.x + sin α, p.y + 2.12, p.z - cos α).
 fn view_matrix(p: &Point3<i32>, angle: f32) -> Matrix4<f32> {
   let y = p.y as f32 + 2.12;  // 0.5 for half block under feet + 1.62 up to eye height.
   let (s, c) = angle.to_radians().sin_cos();
 
   let eye = Point3::new(p.x as f32, y, p.z as f32);
-  let center = Point3::new(p.x as f32 + s, y, p.z as f32 + c);
+  // Start with α == 0, looking at (p.x, y, p.z - 1).
+  let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
   let up = Vector3::new(0.0, 1.0, 0.0);
   Matrix4::look_at(&eye, &center, &up)
 }
