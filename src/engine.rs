@@ -338,7 +338,7 @@ fn view_matrix(p: &Point3<i32>, angle: f32) -> Matrix4<f32> {
   let (s, c) = angle.to_radians().sin_cos();
 
   let eye = Point3::new(p.x as f32, y, p.z as f32);
-  let center = Point3::new(p.x as f32 + s, y, p.x as f32 + c);
+  let center = Point3::new(p.x as f32 + s, y, p.z as f32 + c);
   let up = Vector3::new(0.0, 1.0, 0.0);
   Matrix4::look_at(&eye, &center, &up)
 }
