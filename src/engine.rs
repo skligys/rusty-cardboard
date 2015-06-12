@@ -41,15 +41,29 @@ pub struct EngineImpl {
 
 /// Field of view.
 pub struct Fov {
-  angle: f32,  // in xz plane, in degrees from (0, 0, -1).
+  center_angle_degrees: f32,  // in xz plane, from (0, 0, -1).
 }
 
 impl Fov {
-  fn inc_angle(&mut self, degrees: f32) {
-    self.angle += degrees;
-    if self.angle > 360.0 {
-      self.angle -= 360.0;
+  fn inc_center_angle(&mut self, degrees: f32) {
+    self.center_angle_degrees += degrees;
+    if self.center_angle_degrees > 360.0 {
+      self.center_angle_degrees -= 360.0;
     }
+  }
+
+  /// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane clockwise
+  /// (thus the world is rotating counter-clockwise) and looking at
+  /// (p.x + sin α, p.y + 2.12, p.z - cos α).
+  fn view_matrix(&self, p: &Point3<i32>) -> Matrix4<f32> {
+    let y = p.y as f32 + 2.12;  // 0.5 for half block under feet + 1.62 up to eye height.
+    let (s, c) = self.center_angle_degrees.to_radians().sin_cos();
+
+    let eye = Point3::new(p.x as f32, y, p.z as f32);
+    // Start with α == 0, looking at (p.x, y, p.z - 1).
+    let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
+    let up = Vector3::new(0.0, 1.0, 0.0);
+    Matrix4::look_at(&eye, &center, &up)
   }
 }
 
@@ -72,7 +86,7 @@ impl Engine {
       engine_impl: Default::default(),
       animating: false,
       fov: Fov {
-        angle: 0.0,
+        center_angle_degrees: 0.0,
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -90,7 +104,7 @@ impl Engine {
       },
       animating: false,
       fov: Fov {
-        angle: 0.0,
+        center_angle_degrees: 0.0,
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -239,7 +253,7 @@ impl Engine {
             if let Some(e) = self.world.eye() {
               // Compute the composite mvp_matrix and send it to program.  Model matrix
               // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-              let mvp_matrix = self.projection_matrix * view_matrix(&e, self.fov.angle);
+              let mvp_matrix = self.projection_matrix * self.fov.view_matrix(&e);
               p.set_mvp_matrix(mvp_matrix);
 
               // Finally, draw the cube mesh.
@@ -273,7 +287,7 @@ impl Engine {
     if let Some(e) = self.world.eye() {
       // Compute the composite mvp_matrix and send it to program.  Model matrix
       // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-      let mvp_matrix = self.projection_matrix * view_matrix(&e, self.fov.angle);
+      let mvp_matrix = self.projection_matrix * self.fov.view_matrix(&e);
       p.set_mvp_matrix(mvp_matrix);
 
       // Finally, draw the cube meshes for all chunks.
@@ -294,7 +308,7 @@ impl Engine {
     if self.animating {
       // Done processing events; draw next animation frame.
       // Do a complete rotation every 10 seconds, assuming 60 FPS.
-      self.fov.inc_angle(360.0 / 600.0);
+      self.fov.inc_center_angle(360.0 / 600.0);
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.
       self.draw();
@@ -329,20 +343,6 @@ impl Engine {
   pub fn poll_events(&self) -> PollEventsIterator {
     self.engine_impl.window.poll_events()
   }
-}
-
-/// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane clockwise
-/// (thus the world is rotating counter-clockwise) and looking at
-/// (p.x + sin α, p.y + 2.12, p.z - cos α).
-fn view_matrix(p: &Point3<i32>, angle: f32) -> Matrix4<f32> {
-  let y = p.y as f32 + 2.12;  // 0.5 for half block under feet + 1.62 up to eye height.
-  let (s, c) = angle.to_radians().sin_cos();
-
-  let eye = Point3::new(p.x as f32, y, p.z as f32);
-  // Start with α == 0, looking at (p.x, y, p.z - 1).
-  let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
-  let up = Vector3::new(0.0, 1.0, 0.0);
-  Matrix4::look_at(&eye, &center, &up)
 }
 
 const NEAR_PLANE: f32 = 0.1;
