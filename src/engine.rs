@@ -42,7 +42,11 @@ pub struct EngineImpl {
 /// Field of view.
 pub struct Fov {
   center_angle_degrees: f32,  // in xz plane, from (0, 0, -1).
+  angle_degrees: f32,
 }
+
+const NEAR_PLANE: f32 = 0.1;
+const FAR_PLANE: f32 = 60.0;
 
 impl Fov {
   fn inc_center_angle(&mut self, degrees: f32) {
@@ -64,6 +68,20 @@ impl Fov {
     let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
     let up = Vector3::new(0.0, 1.0, 0.0);
     Matrix4::look_at(&eye, &center, &up)
+  }
+
+  /// Perspective projection matrix as frustum matrix.
+  fn projection_matrix(&self, width: i32, height: i32) -> Matrix4<f32> {
+    let inverse_aspect = height as f32 / width as f32;
+    let field_of_view = self.angle_degrees.to_radians();
+
+    let right = NEAR_PLANE * (field_of_view / 2.0).tan();
+    let left = -right;
+    let top = right * inverse_aspect;
+    let bottom = -top;
+    let near = NEAR_PLANE;
+    let far = FAR_PLANE;
+    cgmath::frustum(left, right, bottom, top, near, far)
   }
 }
 
@@ -87,6 +105,7 @@ impl Engine {
       animating: false,
       fov: Fov {
         center_angle_degrees: 0.0,
+        angle_degrees: 70.0,
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -105,6 +124,7 @@ impl Engine {
       animating: false,
       fov: Fov {
         center_angle_degrees: 0.0,
+        angle_degrees: 70.0,
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -202,7 +222,7 @@ impl Engine {
 
   pub fn set_viewport(&mut self, w: i32, h: i32) {
     gl::viewport(0, 0, w, h);
-    self.projection_matrix = projection_matrix(w, h);
+    self.projection_matrix = self.fov.projection_matrix(w, h);
   }
 
   /// Load texture atlas from assets folder.
@@ -343,22 +363,4 @@ impl Engine {
   pub fn poll_events(&self) -> PollEventsIterator {
     self.engine_impl.window.poll_events()
   }
-}
-
-const NEAR_PLANE: f32 = 0.1;
-const FAR_PLANE: f32 = 60.0;
-const FIELD_OF_VIEW_DEGREES: f32 = 70.0;
-
-/// Perspective projection matrix as frustum matrix.
-fn projection_matrix(width: i32, height: i32) -> Matrix4<f32> {
-  let inverse_aspect = height as f32 / width as f32;
-  let field_of_view = FIELD_OF_VIEW_DEGREES.to_radians();
-
-  let right = NEAR_PLANE * (field_of_view / 2.0).tan();
-  let left = -right;
-  let top = right * inverse_aspect;
-  let bottom = -top;
-  let near = NEAR_PLANE;
-  let far = FAR_PLANE;
-  cgmath::frustum(left, right, bottom, top, near, far)
 }
