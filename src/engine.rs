@@ -39,10 +39,24 @@ pub struct EngineImpl {
   pub program: Program,
 }
 
+/// Field of view.
+pub struct Fov {
+  angle: f32,  // in degrees.
+}
+
+impl Fov {
+  fn inc_angle(&mut self, degrees: f32) {
+    self.angle += degrees;
+    if self.angle > 360.0 {
+      self.angle -= 360.0;
+    }
+  }
+}
+
 pub struct Engine {
   engine_impl: EngineImpl,
   animating: bool,
-  angle: f32,  // in degrees.
+  fov: Fov,
   /// GL projection matrix
   projection_matrix: Matrix4<f32>,
   /// Texture atlas.
@@ -57,7 +71,9 @@ impl Engine {
     Engine {
       engine_impl: Default::default(),
       animating: false,
-      angle: 0.0,
+      fov: Fov {
+        angle: 0.0,
+      },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
@@ -73,7 +89,9 @@ impl Engine {
         program: program,
       },
       animating: false,
-      angle: 0.0,
+      fov: Fov {
+        angle: 0.0,
+      },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
@@ -221,7 +239,7 @@ impl Engine {
             if let Some(e) = self.world.eye() {
               // Compute the composite mvp_matrix and send it to program.  Model matrix
               // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-              let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+              let mvp_matrix = self.projection_matrix * view_matrix(&e, self.fov.angle);
               p.set_mvp_matrix(mvp_matrix);
 
               // Finally, draw the cube mesh.
@@ -255,7 +273,7 @@ impl Engine {
     if let Some(e) = self.world.eye() {
       // Compute the composite mvp_matrix and send it to program.  Model matrix
       // is always identity so instead of MVP = P * V * M just do MVP = P * V.
-      let mvp_matrix = self.projection_matrix * view_matrix(&e, self.angle);
+      let mvp_matrix = self.projection_matrix * view_matrix(&e, self.fov.angle);
       p.set_mvp_matrix(mvp_matrix);
 
       // Finally, draw the cube meshes for all chunks.
@@ -276,10 +294,7 @@ impl Engine {
     if self.animating {
       // Done processing events; draw next animation frame.
       // Do a complete rotation every 10 seconds, assuming 60 FPS.
-      self.angle += 360.0 / 600.0;
-      if self.angle > 360.0 {
-        self.angle = 0.0;
-      }
+      self.fov.inc_angle(360.0 / 600.0);
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.
       self.draw();
