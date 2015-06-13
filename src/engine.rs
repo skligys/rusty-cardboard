@@ -5,10 +5,11 @@ use std::collections::HashMap;
 use std::default::Default;
 use time;
 
-use cgmath::{Matrix4, Point3, Vector3};
+use cgmath::Matrix4;
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
+use fov::{FAR_PLANE, Fov};
 use gl;
 use gl::Texture;
 use mesh;
@@ -37,52 +38,6 @@ impl Default for EngineImpl {
 pub struct EngineImpl {
   pub window: XWindow,
   pub program: Program,
-}
-
-/// Field of view.
-pub struct Fov {
-  center_angle_degrees: f32,  // in xz plane, from (0, 0, -1).
-  angle_degrees: f32,
-}
-
-const NEAR_PLANE: f32 = 0.1;
-const FAR_PLANE: f32 = 60.0;
-
-impl Fov {
-  fn inc_center_angle(&mut self, degrees: f32) {
-    self.center_angle_degrees += degrees;
-    if self.center_angle_degrees > 360.0 {
-      self.center_angle_degrees -= 360.0;
-    }
-  }
-
-  /// A view matrix, eye is at (p.x, p.y + 2.12, p.z), rotating in horizontal plane clockwise
-  /// (thus the world is rotating counter-clockwise) and looking at
-  /// (p.x + sin α, p.y + 2.12, p.z - cos α).
-  fn view_matrix(&self, p: &Point3<i32>) -> Matrix4<f32> {
-    let y = p.y as f32 + 2.12;  // 0.5 for half block under feet + 1.62 up to eye height.
-    let (s, c) = self.center_angle_degrees.to_radians().sin_cos();
-
-    let eye = Point3::new(p.x as f32, y, p.z as f32);
-    // Start with α == 0, looking at (p.x, y, p.z - 1).
-    let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
-    let up = Vector3::new(0.0, 1.0, 0.0);
-    Matrix4::look_at(&eye, &center, &up)
-  }
-
-  /// Perspective projection matrix as frustum matrix.
-  fn projection_matrix(&self, width: i32, height: i32) -> Matrix4<f32> {
-    let inverse_aspect = height as f32 / width as f32;
-    let field_of_view = self.angle_degrees.to_radians();
-
-    let right = NEAR_PLANE * (field_of_view / 2.0).tan();
-    let left = -right;
-    let top = right * inverse_aspect;
-    let bottom = -top;
-    let near = NEAR_PLANE;
-    let far = FAR_PLANE;
-    cgmath::frustum(left, right, bottom, top, near, far)
-  }
 }
 
 pub struct Engine {

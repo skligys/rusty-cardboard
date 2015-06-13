@@ -59,8 +59,8 @@ pub struct World {
 /// 2 dimensional point on xz plane.
 #[derive(Debug)]
 pub struct Point2<T> {
-  x: T,
-  z: T,
+  pub x: T,
+  pub z: T,
 }
 
 impl <T> Point2<T> {

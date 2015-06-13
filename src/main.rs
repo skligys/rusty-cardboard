@@ -37,6 +37,7 @@ mod egl;
 #[cfg(target_os = "android")]
 mod egl_context;
 mod engine;
+mod fov;
 mod gl;
 mod mesh;
 mod perlin;
