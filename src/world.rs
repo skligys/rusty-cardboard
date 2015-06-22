@@ -57,7 +57,7 @@ pub struct World {
 }
 
 /// 2 dimensional point on xz plane.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Point2<T> {
   pub x: T,
   pub z: T,
@@ -68,6 +68,22 @@ impl <T> Point2<T> {
     Point2 {
       x: x,
       z: z,
+    }
+  }
+}
+
+/// 2 dimensional segment on xz plane.
+#[derive(Debug)]
+pub struct Segment2<T> {
+  pub start: Point2<T>,
+  pub end: Point2<T>,
+}
+
+impl <T> Segment2<T> {
+  pub fn new(start: Point2<T>, end: Point2<T>) -> Segment2<T> {
+    Segment2 {
+      start: start,
+      end: end,
     }
   }
 }
