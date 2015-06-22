@@ -1,12 +1,13 @@
 extern crate cgmath;
 
-use cgmath::{Intersect, Line2, Matrix4, Point3, Ray2, Vector2, Vector3};
+use cgmath::{Intersect, Matrix4, Point3, Ray2, Vector2, Vector3};
 
 use world::{Chunk, Point2, Segment2};
 
 /// Field of view.
 pub struct Fov {
-  pub center_angle_degrees: f32,  // in xz plane, from (0, 0, -1).
+  pub vertex: Point2<f32>,  // in xz plane
+  pub center_angle_degrees: f32,  // in xz plane, starting from (0, 0, -1), clockwise
   pub angle_degrees: f32,
 }
 
@@ -50,8 +51,10 @@ impl Fov {
   }
 
   fn point_visible(&self, xz: &Point2<i32>) -> bool {
-    // All in range [0; 360).
-    let point_angle_degrees = (xz.x as f32).atan2(-xz.z as f32).to_degrees().normalize();
+    let x_diff = xz.x as f32 - self.vertex.x;
+    let z_diff = xz.z as f32 - self.vertex.z;
+    // All angles in range [0; 360).
+    let point_angle_degrees = x_diff.atan2(-z_diff).to_degrees().normalize();
     let left_angle_degrees = (self.center_angle_degrees - 0.5 * self.angle_degrees).normalize();
     let right_angle_degrees = (self.center_angle_degrees + 0.5 * self.angle_degrees).normalize();
 
@@ -91,6 +94,7 @@ impl Fov {
     let left_angle = (self.center_angle_degrees + 0.5 * self.angle_degrees).normalize();
     let left_fov_center_angle = 0.5 * (center_angle_opposite + left_angle);
     let left_fov = Fov {
+      vertex: self.vertex.clone(),
       center_angle_degrees: left_fov_center_angle.normalize(),
       angle_degrees: 0.5 * (360.0 - self.angle_degrees),
     };
@@ -101,6 +105,7 @@ impl Fov {
     let right_angle = (self.center_angle_degrees - 0.5 * self.angle_degrees).normalize();
     let right_fov_center_angle = 0.5 * (center_angle_opposite + right_angle);
     let right_fov = Fov {
+      vertex: self.vertex.clone(),
       center_angle_degrees: right_fov_center_angle.normalize(),
       angle_degrees: 0.5 * (360.0 - self.angle_degrees),
     };
@@ -109,15 +114,9 @@ impl Fov {
     }
 
     // Case 3.
-    // TODO: FOV origin could be anywhere, not only at (0, 0).
     let (s, c) = self.center_angle_degrees.to_radians().sin_cos();
-    let center_ray = Ray2::new(cgmath::Point2::new(0.0, 0.0), Vector2::new(s, -c));
-
-    let cgmath_origin = cgmath::Point2::new(seg.start.x as f32, seg.start.z as f32);
-    let cgmath_dest = cgmath::Point2::new(seg.end.x as f32, seg.end.z as f32);
-    let cgmath_segment = Line2::new(cgmath_origin, cgmath_dest);
-
-    let intersection = (center_ray, cgmath_segment).intersection();
+    let center_ray = Ray2::new(self.vertex.as_cgmath(), Vector2::new(s, -c));
+    let intersection = (center_ray, seg.as_cgmath()).intersection();
     intersection.is_some()
   }
 
@@ -163,6 +162,7 @@ mod tests {
   #[test]
   fn point_visible_close_to_left() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 79.0,
       angle_degrees: 70.0,
     };
@@ -173,6 +173,7 @@ mod tests {
   #[test]
   fn point_invisible_close_to_left() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 81.0,
       angle_degrees: 70.0,
     };
@@ -183,6 +184,7 @@ mod tests {
   #[test]
   fn point_visible_close_to_right() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 11.0,
       angle_degrees: 70.0,
     };
@@ -193,6 +195,7 @@ mod tests {
   #[test]
   fn point_invisible_close_to_right() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 9.0,
       angle_degrees: 70.0,
     };
@@ -201,8 +204,53 @@ mod tests {
   }
 
   #[test]
+  fn point_visible_non_zero_vertex_along_z_axis() {
+    let fov = Fov {
+      vertex: Point2::new(0.0, 2.0),
+      center_angle_degrees: 0.0,
+      angle_degrees: 70.0,
+    };
+    let xz = Point2::new(0, 1);
+    assert!(fov.point_visible(&xz))
+  }
+
+  #[test]
+  fn point_invisible_non_zero_vertex_along_z_axis() {
+    let fov = Fov {
+      vertex: Point2::new(0.0, -2.0),
+      center_angle_degrees: 0.0,
+      angle_degrees: 70.0,
+    };
+    let xz = Point2::new(0, -1);
+    assert!(!fov.point_visible(&xz))
+  }
+
+  #[test]
+  fn point_visible_non_zero_vertex_along_x_axis() {
+    let fov = Fov {
+      vertex: Point2::new(-2.0, 0.0),
+      center_angle_degrees: 90.0,
+      angle_degrees: 70.0,
+    };
+    let xz = Point2::new(-1, 0);
+    assert!(fov.point_visible(&xz))
+  }
+
+  #[test]
+  fn point_invisible_non_zero_vertex_along_x_axis() {
+    let fov = Fov {
+      vertex: Point2::new(2.0, 0.0),
+      center_angle_degrees: 0.0,
+      angle_degrees: 70.0,
+    };
+    let xz = Point2::new(1, 0);
+    assert!(!fov.point_visible(&xz))
+  }
+
+  #[test]
   fn segment_visible_both_ends_inside_fov() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 34.0,
       angle_degrees: 70.0,
     };
@@ -213,6 +261,7 @@ mod tests {
   #[test]
   fn segment_visible_start_inside_fov() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 36.0,
       angle_degrees: 70.0,
     };
@@ -223,6 +272,7 @@ mod tests {
   #[test]
   fn segment_visible_end_inside_fov() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 360.0 - 34.0,
       angle_degrees: 70.0,
     };
@@ -233,6 +283,7 @@ mod tests {
   #[test]
   fn segment_invisible_both_ends_outside_fov_on_the_same_side_1() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 90.0,
       angle_degrees: 70.0,
     };
@@ -243,6 +294,7 @@ mod tests {
   #[test]
   fn segment_invisible_both_ends_outside_fov_on_the_same_side_2() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 90.0,
       angle_degrees: 70.0,
     };
@@ -253,6 +305,7 @@ mod tests {
   #[test]
   fn segment_visible_both_ends_outside_fov_on_different_sides() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 90.0,
       angle_degrees: 70.0,
     };
@@ -263,10 +316,33 @@ mod tests {
   #[test]
   fn segment_invisible_both_ends_outside_fov_on_different_sides() {
     let fov = Fov {
+      vertex: Point2::new(0.0, 0.0),
       center_angle_degrees: 90.0,
       angle_degrees: 70.0,
     };
     let seg = Segment2::new(Point2::new(-1, 1), Point2::new(-1, -1));
     assert!(!fov.segment_visible(&seg))
+  }
+
+  #[test]
+  fn segment_visible_both_ends_outside_fov_on_different_sides_non_zero_vertex_along_x_axis() {
+    let fov = Fov {
+      vertex: Point2::new(-2.0, 0.0),
+      center_angle_degrees: 90.0,
+      angle_degrees: 70.0,
+    };
+    let seg = Segment2::new(Point2::new(-1, 1), Point2::new(-1, -1));
+    assert!(fov.segment_visible(&seg))
+  }
+
+  #[test]
+  fn segment_visible_both_ends_outside_fov_on_different_sides_non_zero_vertex_along_z_axis() {
+    let fov = Fov {
+      vertex: Point2::new(0.0, 2.0),
+      center_angle_degrees: 0.0,
+      angle_degrees: 70.0,
+    };
+    let seg = Segment2::new(Point2::new(1, 1), Point2::new(-1, 1));
+    assert!(fov.segment_visible(&seg))
   }
 }

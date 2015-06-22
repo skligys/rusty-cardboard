@@ -59,6 +59,7 @@ impl Engine {
       engine_impl: Default::default(),
       animating: false,
       fov: Fov {
+        vertex: Point2::new(0.0, 0.0),
         center_angle_degrees: 0.0,
         angle_degrees: 70.0,
       },
@@ -78,6 +79,7 @@ impl Engine {
       },
       animating: false,
       fov: Fov {
+        vertex: Point2::new(0.0, 0.0),
         center_angle_degrees: 0.0,
         angle_degrees: 70.0,
       },

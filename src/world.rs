@@ -3,7 +3,8 @@ use std::collections::hash_map;
 use std::ops::Range;
 use time;
 
-use cgmath::{Aabb3, Point3};
+use cgmath;
+use cgmath::{Aabb3, BaseNum, Line2, Point3};
 
 use perlin;
 
@@ -72,6 +73,12 @@ impl <T> Point2<T> {
   }
 }
 
+impl <T: BaseNum> Point2<T> {
+  pub fn as_cgmath(&self) -> cgmath::Point2<T> {
+    cgmath::Point2::new(self.x, self.z)
+  }
+}
+
 /// 2 dimensional segment on xz plane.
 #[derive(Debug)]
 pub struct Segment2<T> {
@@ -85,6 +92,14 @@ impl <T> Segment2<T> {
       start: start,
       end: end,
     }
+  }
+}
+
+impl Segment2<i32> {
+  pub fn as_cgmath(&self) -> cgmath::Line2<f32> {
+    let origin = cgmath::Point2::new(self.start.x as f32, self.start.z as f32);
+    let dest = cgmath::Point2::new(self.end.x as f32, self.end.z as f32);
+    Line2::new(origin, dest)
   }
 }
 
