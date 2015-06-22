@@ -231,12 +231,13 @@ impl Engine {
               let mvp_matrix = self.projection_matrix * self.fov.view_matrix(&e);
               p.set_mvp_matrix(mvp_matrix);
 
-              // Finally, draw the cube mesh.
-              // TODO: Draw only meshes for only visible chunks within FOV.
-              for bs in self.buffers.values() {
-                p.bind_buffers(bs);
-                gl::draw_elements_triangles_u16(bs.index_count);
-                p.unbind_buffers();
+              // Finally, draw the cube mesh for all visible chunks.
+              for (ch, bs) in self.buffers.iter() {
+                if self.fov.chunk_visible(ch) {
+                  p.bind_buffers(bs);
+                  gl::draw_elements_triangles_u16(bs.index_count);
+                  p.unbind_buffers();
+                }
               }
             }
           },
@@ -265,12 +266,13 @@ impl Engine {
       let mvp_matrix = self.projection_matrix * self.fov.view_matrix(&e);
       p.set_mvp_matrix(mvp_matrix);
 
-      // Finally, draw the cube meshes for all chunks.
-      // TODO: Draw only meshes for only visible chunks within FOV.
-      for bs in self.buffers.values() {
-        p.bind_buffers(bs);
-        gl::draw_elements_triangles_u16(bs.index_count);
-        p.unbind_buffers();
+      // Finally, draw the cube meshes for all visible chunks.
+      for (ch, bs) in self.buffers.iter() {
+        if self.fov.chunk_visible(ch) {
+          p.bind_buffers(bs);
+          gl::draw_elements_triangles_u16(bs.index_count);
+          p.unbind_buffers();
+        }
       }
     }
 

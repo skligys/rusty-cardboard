@@ -2,7 +2,7 @@ extern crate cgmath;
 
 use cgmath::{Matrix4, Point3, Vector3};
 
-use world::Point2;
+use world::{Chunk, Point2};
 
 /// Field of view.
 pub struct Fov {
@@ -72,6 +72,18 @@ impl Fov {
         between(left_angle_degrees, point_angle_degrees + 360.0, right_angle_degrees + 360.0)
       }
     }
+  }
+
+  pub fn chunk_visible(&self, chunk: &Chunk) -> bool {
+    let bounds = chunk.block_bounds();
+    let xz_vertices = [
+      Point2::new(bounds.min.x, bounds.min.z),
+      Point2::new(bounds.min.x, bounds.max.z),
+      Point2::new(bounds.max.x, bounds.min.z),
+      Point2::new(bounds.max.x, bounds.max.z),
+    ];
+    // TODO: Check this properly!!!
+    xz_vertices.iter().any(|v| self.point_visible(v))
   }
 }
 
