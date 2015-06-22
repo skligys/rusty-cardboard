@@ -3,6 +3,7 @@ extern crate png;
 
 use std::collections::HashMap;
 use std::default::Default;
+use std::f32::consts::PI_2;
 use time;
 
 use cgmath::Matrix4;
@@ -60,8 +61,8 @@ impl Engine {
       animating: false,
       fov: Fov {
         vertex: Point2::new(0.0, 0.0),
-        center_angle_degrees: 0.0,
-        angle_degrees: 70.0,
+        center_angle: 0f32.to_radians(),
+        view_angle: 70f32.to_radians(),
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -80,8 +81,8 @@ impl Engine {
       animating: false,
       fov: Fov {
         vertex: Point2::new(0.0, 0.0),
-        center_angle_degrees: 0.0,
-        angle_degrees: 70.0,
+        center_angle: 0f32.to_radians(),
+        view_angle: 70f32.to_radians(),
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -287,7 +288,7 @@ impl Engine {
     if self.animating {
       // Done processing events; draw next animation frame.
       // Do a complete rotation every 10 seconds, assuming 60 FPS.
-      self.fov.inc_center_angle(360.0 / 600.0);
+      self.fov.inc_center_angle(PI_2 / 600.0);
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.
       self.draw();
