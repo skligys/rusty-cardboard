@@ -1,5 +1,5 @@
 [package]
-name = "RustyCardboard"
+name = "rusty_cardboard"
 version = "0.1.0"
 authors = ["Skirmantas Kligys <Skirmantas.Kligys@gmail.com>"]
 description = "Minecraft simulation in Rust."

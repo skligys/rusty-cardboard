@@ -1,4 +1,4 @@
-#![feature(collections, core, start, slice_patterns, std_misc, unsafe_destructor)]
+#![feature(collections, core, start, slice_patterns, std_misc)]
 
 #[macro_use]
 #[cfg(target_os = "android")]
