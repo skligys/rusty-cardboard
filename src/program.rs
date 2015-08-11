@@ -81,24 +81,24 @@ impl Program {
 
     if !gl::get_link_status(id) {
       let info_log = gl::get_program_info_log(id);
-      return Err(GlError::Generic(format!("Linking program failed: {}", info_log)));
+      return Err(GlError::ProgramLinkFailed(format!("Linking program failed: {}", info_log)));
     }
 
     let mvp_matrix = match gl::get_uniform_location(id, "u_MVPMatrix") {
       Ok(l) => l,
-      Err(e) => return Err(GlError::Generic(format!("gl::get_uniform_location(\"u_MVPMatrix\") failed: {:?}", e))),
+      Err(e) => return Err(GlError::NotSupported(format!("gl::get_uniform_location(\"u_MVPMatrix\") failed: {:?}", e))),
     };
     let position = match gl::get_attrib_location(id, "a_Position") {
       Ok(l) => l,
-      Err(e) => return Err(GlError::Generic(format!("gl::get_attrib_location(\"a_Position\") failed: {:?}", e))),
+      Err(e) => return Err(GlError::NotSupported(format!("gl::get_attrib_location(\"a_Position\") failed: {:?}", e))),
     };
     let texture_unit = match gl::get_uniform_location(id, "u_TextureUnit") {
       Ok(l) => l,
-      Err(e) => return Err(GlError::Generic(format!("gl::get_uniform_location(\"u_TextureUnit\") failed: {:?}", e))),
+      Err(e) => return Err(GlError::NotSupported(format!("gl::get_uniform_location(\"u_TextureUnit\") failed: {:?}", e))),
     };
     let texture_coord = match gl::get_attrib_location(id, "a_TextureCoord") {
       Ok(l) => l,
-      Err(e) => return Err(GlError::Generic(format!("gl::get_attrib_location(\"a_TextureCoord\") failed: {:?}", e))),
+      Err(e) => return Err(GlError::NotSupported(format!("gl::get_attrib_location(\"a_TextureCoord\") failed: {:?}", e))),
     };
     gl::use_program(id);
 
@@ -212,7 +212,7 @@ impl Shader {
 
     if !gl::get_compile_status(shader.id) {
       let info_log = gl::get_shader_info_log(shader.id);
-      return Err(GlError::Generic(format!("Compiling shader {} failed: {}", shader_type, info_log)));
+      return Err(GlError::ShaderCompileFailed(format!("Compiling shader {} failed: {}", shader_type, info_log)));
     }
     Ok(shader)
   }
@@ -224,7 +224,7 @@ pub enum GlError {
   Generic(String),
   ShaderCompileFailed(String),
   ProgramLinkFailed(String),
-  NotSupported,
+  NotSupported(String),
 }
 
 impl GlError {
@@ -233,7 +233,7 @@ impl GlError {
       GlError::Generic(ref text) => &text,
       GlError::ShaderCompileFailed(ref text) => &text,
       GlError::ProgramLinkFailed(ref text) => &text,
-      GlError::NotSupported => "Some of the requested attributes are not supported",
+      GlError::NotSupported(ref text) => &text,
     }
   }
 }

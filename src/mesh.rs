@@ -209,8 +209,8 @@ impl Vertices {
     let new_vertex_count = old_vertex_count + 4;
     assert!(new_vertex_count <= u16::MAX as usize, "Too many vertices: {}", new_vertex_count);
 
-    self.coords.push_all(coords);
-    self.indices.push_all(&shift(indices, old_vertex_count as u16));
+    self.coords.extend(coords.into_iter().cloned());
+    self.indices.extend(shift(indices, old_vertex_count as u16).into_iter());
   }
 
   pub fn coords(&self) -> &[Coords] {

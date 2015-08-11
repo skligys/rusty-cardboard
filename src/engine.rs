@@ -3,7 +3,7 @@ extern crate png;
 
 use std::collections::HashMap;
 use std::default::Default;
-use std::f32::consts::PI_2;
+use std::f32::consts::PI;
 use time;
 
 use cgmath::Matrix4;
@@ -61,8 +61,8 @@ impl Engine {
       animating: false,
       fov: Fov {
         vertex: Point2::new(0.0, 0.0),
-        center_angle: 0f32.to_radians(),
-        view_angle: 70f32.to_radians(),
+        center_angle: 0f32.to_rad(),
+        view_angle: 70f32.to_rad(),
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -81,8 +81,8 @@ impl Engine {
       animating: false,
       fov: Fov {
         vertex: Point2::new(0.0, 0.0),
-        center_angle: 0f32.to_radians(),
-        view_angle: 70f32.to_radians(),
+        center_angle: 0f32.to_rad(),
+        view_angle: 70f32.to_rad(),
       },
       projection_matrix: Matrix4::identity(),
       texture: Default::default(),
@@ -288,7 +288,7 @@ impl Engine {
     if self.animating {
       // Done processing events; draw next animation frame.
       // Do a complete rotation every 10 seconds, assuming 60 FPS.
-      self.fov.inc_center_angle(PI_2 / 600.0);
+      self.fov.inc_center_angle(2.0 * PI / 600.0);
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.
       self.draw();
@@ -322,5 +322,16 @@ impl Engine {
   #[cfg(target_os = "linux")]
   pub fn poll_events(&self) -> PollEventsIterator {
     self.engine_impl.window.poll_events()
+  }
+}
+
+trait ToRad {
+  /// Convert a value into radians.
+  fn to_rad(&self) -> Self;
+}
+
+impl ToRad for f32 {
+  fn to_rad(&self) -> Self {
+    self * PI / 180.0
   }
 }

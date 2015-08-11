@@ -1,6 +1,6 @@
 extern crate cgmath;
 
-use std::f32::consts::{PI, PI_2};
+use std::f32::consts::PI;
 
 use cgmath::{Intersect, Matrix4, Point3, Ray2, Vector2, Vector3};
 
@@ -22,8 +22,8 @@ pub const FAR_PLANE: f32 = 60.0;
 impl Fov {
   pub fn inc_center_angle(&mut self, radians: f32) {
     self.center_angle += radians;
-    if self.center_angle > PI_2 {
-      self.center_angle -= PI_2;
+    if self.center_angle > 2.0 * PI {
+      self.center_angle -= 2.0 * PI;
     }
   }
 
@@ -73,10 +73,10 @@ impl Fov {
       // One of left/right wrapped.
       if point_angle >= left_angle {
         // Point has not wrapped.
-        point_angle <= right_angle + PI_2
+        point_angle <= right_angle + 2.0 * PI
       } else {
         // Point has wrapped.
-        between(left_angle, point_angle + PI_2, right_angle + PI_2)
+        between(left_angle, point_angle + 2.0 * PI, right_angle + 2.0 * PI)
       }
     }
   }
@@ -100,7 +100,7 @@ impl Fov {
     let left_fov = Fov {
       vertex: self.vertex.clone(),
       center_angle: left_fov_center_angle.normalize(),
-      view_angle: 0.5 * (PI_2 - self.view_angle),
+      view_angle: 0.5 * (2.0 * PI - self.view_angle),
     };
     if left_fov.point_visible(&seg.start) && left_fov.point_visible(&seg.end) {
       return false;
@@ -111,7 +111,7 @@ impl Fov {
     let right_fov = Fov {
       vertex: self.vertex.clone(),
       center_angle: right_fov_center_angle.normalize(),
-      view_angle: 0.5 * (PI_2 - self.view_angle),
+      view_angle: 0.5 * (2.0 * PI - self.view_angle),
     };
     if right_fov.point_visible(&seg.start) && right_fov.point_visible(&seg.end) {
       return false;
@@ -153,14 +153,13 @@ trait NormalizeRadians {
 
 impl NormalizeRadians for f32 {
   fn normalize(self) -> f32 {
-    let floor = (self / PI_2).floor();
-    self - PI_2 * floor
+    let floor = (self / (2.0 * PI)).floor();
+    self - 2.0 * PI * floor
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::f32::consts::PI_2;
   use super::Fov;
   use world::{Point2, Segment2};
 
@@ -278,7 +277,7 @@ mod tests {
   fn segment_visible_end_inside_fov() {
     let fov = Fov {
       vertex: Point2::new(0.0, 0.0),
-      center_angle: PI_2 - 34f32.to_radians(),
+      center_angle: 2.0 * PI - 34f32.to_radians(),
       view_angle: 70f32.to_radians(),
     };
     let seg = Segment2::new(Point2::new(1, -1), Point2::new(0, -1));
