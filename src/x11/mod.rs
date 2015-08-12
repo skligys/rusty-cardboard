@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use std::ffi::{CStr, CString};
 use std::mem;
 use std::ptr;
+use std::slice;
 use std::str;
 use std::sync::{Mutex, Once, ONCE_INIT};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -300,7 +301,7 @@ fn choose_fb_config(display: *mut Display, screen_id: c_int, visual_attributes: 
   }
 
   let configs = unsafe {
-    Vec::from_raw_buf(fb, num_fb as usize)
+    slice::from_raw_parts(fb, num_fb as usize).to_vec()
   };
   unsafe { XFree(fb as *const c_void) };
   configs
@@ -648,7 +649,6 @@ pub enum MouseButton {
   Left,
   Right,
   Middle,
-  Other(u8),
 }
 
 #[allow(dead_code)]
@@ -724,7 +724,6 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         },
 
         MOTION_NOTIFY => {
-//          println!("X11 event: MOTION_NOTIFY");
           let event: &XMotionEvent = unsafe { mem::transmute(&x_event) };
           return Some(Event::MouseMoved((event.x as i32, event.y as i32)));
         },

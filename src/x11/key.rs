@@ -77,13 +77,6 @@ pub enum VirtualKeyCode {
   F14,
   F15,
 
-  /// Print Screen/SysRq.
-  Snapshot,
-  /// Scroll Lock.
-  Scroll,
-  /// Pause/Break key, next to Scroll lock.
-  Pause,
-
   /// `Insert`, next to Backspace.
   Insert,
   Home,
@@ -324,7 +317,7 @@ pub fn keycode_to_element(scancode: c_uint) -> Option<VirtualKeyCode> {
     XK_UPPERCASE_Z => Some(VirtualKeyCode::Z),
     XK_BRACKET_LEFT => Some(VirtualKeyCode::LBracket),
     XK_BACKSLASH => Some(VirtualKeyCode::Backslash),
-    XK_BRACKET_RIGHT => Some(VirtualKeyCode::LBracket),
+    XK_BRACKET_RIGHT => Some(VirtualKeyCode::RBracket),
     XK_LOWERCASE_A => Some(VirtualKeyCode::A),
     XK_LOWERCASE_B => Some(VirtualKeyCode::B),
     XK_LOWERCASE_C => Some(VirtualKeyCode::C),
