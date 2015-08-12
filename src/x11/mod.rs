@@ -83,6 +83,7 @@ pub struct XWindow {
   context: GLXContext,
   is_closed: AtomicBool,
   current_size: Cell<(c_int, c_int)>,
+  current_pos: Cell<(c_int, c_int)>,
   /// Events that have been retreived from XLib but not dispatched via iterators yet.
   pending_events: Mutex<VecDeque<Event>>,
 }
@@ -202,6 +203,7 @@ impl XWindow {
       context: context,
       is_closed: AtomicBool::new(false),
       current_size: Cell::new((0, 0)),
+      current_pos: Cell::new((0, 0)),
       pending_events: Mutex::new(VecDeque::new()),
     };
 
@@ -716,10 +718,30 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         CONFIGURE_NOTIFY => {
           println!("X11 event: CONFIGURE_NOTIFY");
           let cfg_event: &XConfigureEvent = unsafe { mem::transmute(&x_event) };
+          let mut events: Vec<Event> = Vec::with_capacity(2);
+
           let (current_width, current_height) = self.window.current_size.get();
           if current_width != cfg_event.width || current_height != cfg_event.height {
             self.window.current_size.set((cfg_event.width, cfg_event.height));
-            return Some(Event::Resized(cfg_event.width as u32, cfg_event.height as u32));
+            events.push(Event::Resized(cfg_event.width as u32, cfg_event.height as u32));
+          }
+
+          let (current_x, current_y) = self.window.current_pos.get();
+          if current_x != cfg_event.x || current_y != cfg_event.y {
+            self.window.current_pos.set((cfg_event.x, cfg_event.y));
+            events.push(Event::Moved(cfg_event.x as i32, cfg_event.y as i32));
+          }
+
+          match events.len() {
+            1 => return Some(events[0]),
+            0 => (),
+            _ => {
+              // Can only return a single event here.  If both moved and resized, just directly
+              // stuff events into pending event queue and return nothing.
+              for e in events {
+                self.window.pending_events.lock().unwrap().push_back(e);
+              }
+            }
           }
         },
 
