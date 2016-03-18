@@ -10,8 +10,10 @@ repository = "https://github.com/skligys/rusty-cardboard"
 [target.arm-linux-androideabi.dependencies.android_glue]
 git = "https://github.com/skligys/android-rs-glue"
 
-[dependencies.cgmath]
-git = "https://github.com/bjz/cgmath-rs.git"
+# As of 2016-03-19, crates.io version points to cgmath-0.5 and conflicts with
+# current cgmath-0.7 on crates.io.
+[dependencies.collision]
+git = "https://github.com/csherratt/collision-rs.git"
 
 [dependencies.png]
 git = "https://github.com/servo/rust-png.git"
@@ -20,6 +22,7 @@ git = "https://github.com/servo/rust-png.git"
 git = "https://github.com/bjz/noise-rs.git"
 
 [dependencies]
-lazy_static = "0.1.*"
+cgmath = "*"
+lazy_static = "*"
 libc = "*"
 time = "*"

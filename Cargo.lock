@@ -2,128 +2,146 @@
 name = "rusty_cardboard"
 version = "0.1.0"
 dependencies = [
- "android_glue 0.0.2 (git+https://github.com/skligys/android-rs-glue)",
- "cgmath 0.2.0 (git+https://github.com/bjz/cgmath-rs.git)",
- "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "android_glue 0.1.1 (git+https://github.com/skligys/android-rs-glue)",
+ "cgmath 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "collision 0.5.1 (git+https://github.com/csherratt/collision-rs.git)",
+ "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "noise 0.1.5 (git+https://github.com/bjz/noise-rs.git)",
  "png 0.1.0 (git+https://github.com/skligys/rust-png.git)",
- "time 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "advapi32-sys"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "android_glue"
-version = "0.0.2"
-source = "git+https://github.com/skligys/android-rs-glue#d3700c17248a954f7f9fbce4c53c3b40c145a3d2"
+version = "0.1.1"
+source = "git+https://github.com/skligys/android-rs-glue#3b087cc69e2d8198701ce27bf88424b21231f906"
 
 [[package]]
 name = "cgmath"
-version = "0.2.0"
-source = "git+https://github.com/bjz/cgmath-rs.git#aebe5fd9bfb2daa468754a19a1eac02aa8f959e8"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "num 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "collision"
+version = "0.5.1"
+source = "git+https://github.com/csherratt/collision-rs.git#f80825eca687ff1053ff492e54fa782944c9cf6b"
+dependencies = [
+ "cgmath 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gcc"
-version = "0.3.13"
+version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "advapi32-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "kernel32-sys"
-version = "0.1.3"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "lazy_static"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "libc"
-version = "0.1.8"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "libc"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "libz-sys"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "gcc 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pkg-config 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "noise"
 version = "0.1.5"
-source = "git+https://github.com/bjz/noise-rs.git#d46df3fd9e37000a45fa76aad3fcdb85f4967318"
+source = "git+https://github.com/bjz/noise-rs.git#8da2799f8806b2fa9bf09f7c26aebc416cd5a5b9"
 dependencies = [
- "num 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "num"
-version = "0.1.26"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rand 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "pkg-config"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "png"
 version = "0.1.0"
-source = "git+https://github.com/skligys/rust-png.git#b3c87204c96783b3b4f8382e11ec2d0d1f6f1980"
+source = "git+https://github.com/skligys/rust-png.git#c36552e550fae26148c2580f5deb8aa3ee7c2720"
 dependencies = [
- "gcc 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gcc 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "png_sys 1.6.16 (git+https://github.com/skligys/rust-png.git)",
 ]
 
 [[package]]
 name = "png_sys"
 version = "1.6.16"
-source = "git+https://github.com/skligys/rust-png.git#b3c87204c96783b3b4f8382e11ec2d0d1f6f1980"
+source = "git+https://github.com/skligys/rust-png.git#c36552e550fae26148c2580f5deb8aa3ee7c2720"
+dependencies = [
+ "libz-sys 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "rand"
-version = "0.3.9"
+version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "advapi32-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-serialize"
-version = "0.3.15"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "time"
-version = "0.1.32"
+version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "kernel32-sys 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "winapi"
-version = "0.2.1"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
