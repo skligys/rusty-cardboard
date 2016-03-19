@@ -212,8 +212,8 @@ pub fn get_shader_info_log(shader: Shader) -> String {
   string_from_chars(&buff)
 }
 
-fn string_from_chars(chars: &[i8]) -> String {
-  chars.iter().map(|c| *c as u8 as char).collect()
+fn string_from_chars(chars: &[u8]) -> String {
+  chars.iter().map(|c| *c as char).collect()
 }
 
 pub fn delete_shader(shader: Shader) {
@@ -251,7 +251,7 @@ pub fn detach_shader(program: Program, shader: Shader) {
 pub fn bind_attrib_location(program: Program, index: u32, name: &str) {
   let name_c_string = CString::new(name).unwrap();
   unsafe {
-    glBindAttribLocation(program, index, name_c_string.as_ptr() as *const i8);
+    glBindAttribLocation(program, index, name_c_string.as_ptr());
   }
 }
 
@@ -361,8 +361,7 @@ pub fn viewport(x: i32, y: i32, width: i32, height: i32) {
 
 pub fn uniform_matrix4_f32(location: UnifLoc, matrix: &Matrix4<f32>) {
   unsafe {
-    use cgmath::Array2;
-    glUniformMatrix4fv(location, 1, FALSE as u8, matrix.ptr());
+    glUniformMatrix4fv(location, 1, FALSE as u8, &matrix[0][0]);
   }
 }
 
