@@ -62,7 +62,7 @@ pub type Int = c_int;
 type SizeI = c_int;
 type SizeIPtr = ptrdiff_t;
 type UByte = uint8_t;
-type UInt = c_uint;
+pub type UInt = c_uint;
 type Void = c_void;
 
 // glClear mask bits:

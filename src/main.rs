@@ -103,7 +103,7 @@ fn init_display(engine: &mut Engine) {
   log!("*** Renderer initializing...");
   let start_ns = time::precise_time_ns();
   let app = android_glue::get_app();
-  let window = app.window as *mut android_glue::ffi::ANativeWindow;
+  let window = app.window as egl::NativeWindowType;
   let egl_context = Box::new(EglContext::new(window));
   let texture_atlas_bytes = load_asset("atlas.png");
   engine.init(egl_context, &texture_atlas_bytes);

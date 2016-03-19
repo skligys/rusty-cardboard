@@ -5,7 +5,7 @@ use std::ptr;
 
 use android_glue;
 use egl;
-use egl::{Config, Context, Display, Surface};
+use egl::{Config, Context, Display, NativeWindowType, Surface};
 
 // RAII managed EGL pointers.  Cleaned up automatically via Drop.
 pub struct EglContext {
@@ -29,7 +29,7 @@ impl Default for EglContext {
 }
 
 impl EglContext {
-  pub fn new(window: *mut android_glue::ffi::ANativeWindow) -> EglContext {
+  pub fn new(window: NativeWindowType) -> EglContext {
     let display = egl::get_display(egl::DEFAULT_DISPLAY);
     if let Err(e) = egl::initialize(display) {
       panic!("Failed in egl::initialize(): {:?}", e);
@@ -78,7 +78,7 @@ impl EglContext {
     }
 
     unsafe {
-      android_glue::ffi::ANativeWindow_setBuffersGeometry(window, 0, 0, format);
+      android_glue::ffi::ANativeWindow_setBuffersGeometry(window as *mut android_glue::ffi::ANativeWindow, 0, 0, format);
     }
 
     let surface = match egl::create_window_surface(display, config, window) {

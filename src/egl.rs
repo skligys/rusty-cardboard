@@ -1,4 +1,3 @@
-extern crate android_glue;
 extern crate libc;
 
 use libc::{c_uint, c_void};
@@ -11,6 +10,9 @@ pub const NO_DISPLAY: Display = 0 as Display;
 
 pub type NativeDisplayType = *const c_void;
 pub const DEFAULT_DISPLAY: NativeDisplayType = 0 as NativeDisplayType;
+
+pub enum ANativeWindow {}
+pub type NativeWindowType = *const ANativeWindow;
 
 pub type Surface = *const c_void;
 pub const NO_SURFACE: Surface = 0 as Surface;
@@ -172,7 +174,7 @@ pub fn get_config_attrib(display: Display, config: Config, attribute: Int) -> Re
   }
 }
 
-pub fn create_window_surface(display: Display, config: Config, window: android_glue::ffi::NativeWindowType) ->
+pub fn create_window_surface(display: Display, config: Config, window: NativeWindowType) ->
   Result<Surface, Error> {
   let res = unsafe {
     eglCreateWindowSurface(display, config, window, ptr::null())
@@ -195,7 +197,7 @@ pub fn create_window_surface(display: Display, config: Config, window: android_g
 }
 
 #[allow(dead_code)]
-pub fn create_window_surface_with_attribs(display: Display, config: Config, window: android_glue::ffi::NativeWindowType,
+pub fn create_window_surface_with_attribs(display: Display, config: Config, window: NativeWindowType,
   attribs: &[Int]) -> Result<Surface, Error> {
   let res = unsafe {
     eglCreateWindowSurface(display, config, window, attribs.as_ptr())
@@ -392,7 +394,7 @@ extern {
   fn eglChooseConfig(display: Display, attrib_list: *const Int, configs: *mut Config,
     config_size: Int, num_config: *mut Int) -> Boolean;
   fn eglGetConfigAttrib(display: Display, config: Config, attribute: Int, value: *mut Int) -> Boolean;
-  fn eglCreateWindowSurface(display: Display, config: Config, window: android_glue::ffi::NativeWindowType, attrib_list: *const Int) -> Surface;
+  fn eglCreateWindowSurface(display: Display, config: Config, window: NativeWindowType, attrib_list: *const Int) -> Surface;
   fn eglGetError() -> Int;
   fn eglCreateContext(display: Display, config: Config, share_context: Context, attrib_list: *const Int) -> Context;
   fn eglMakeCurrent(display: Display, draw: Surface, read: Surface, context: Context) -> Boolean;

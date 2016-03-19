@@ -1,6 +1,6 @@
 use std::u16;
 
-use cgmath::{Point, Vector3};
+use cgmath::Vector3;
 
 use program::VertexArray;
 use world::{Block, World};
