@@ -260,7 +260,7 @@ pub fn create_mesh_vertices(blocks: &Vec<Block>, world: &World) -> Vertices {
   for block in blocks {
     // Eliminate definitely invisible faces, i.e. those between two neighboring cubes.
     for face in CUBE_FACES.iter() {
-      if !world.contains(&block.add_v(&face.direction)) {
+      if !world.contains(&(block + face.direction)) {
         vertices.add(&translate(&face.coords, block), &INDICES);
       }
     }

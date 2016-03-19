@@ -2,7 +2,8 @@ extern crate cgmath;
 
 use std::f32::consts::PI;
 
-use cgmath::{Intersect, Matrix4, Point3, Ray2, Vector2, Vector3};
+use cgmath::{Matrix4, Point3, Vector2, Vector3};
+use collision::{Intersect, Ray2};
 
 use world::{Chunk, Point2, Segment2};
 
@@ -38,7 +39,7 @@ impl Fov {
     // Start with α == 0, looking at (p.x, y, p.z - 1).
     let center = Point3::new(p.x as f32 + s, y, p.z as f32 - c);
     let up = Vector3::new(0.0, 1.0, 0.0);
-    Matrix4::look_at(&eye, &center, &up)
+    Matrix4::look_at(eye, center, up)
   }
 
   /// Perspective projection matrix as frustum matrix.

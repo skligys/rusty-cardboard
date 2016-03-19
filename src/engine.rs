@@ -56,6 +56,7 @@ pub struct Engine {
 impl Engine {
   #[cfg(target_os = "android")]
   pub fn new() -> Engine {
+    use cgmath::SquareMatrix;
     Engine {
       engine_impl: Default::default(),
       animating: false,
@@ -73,6 +74,7 @@ impl Engine {
 
   #[cfg(target_os = "linux")]
   pub fn new(window: XWindow, program: Program) -> Engine {
+    use cgmath::SquareMatrix;
     Engine {
       engine_impl: EngineImpl {
         window: window,

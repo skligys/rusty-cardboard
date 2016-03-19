@@ -1,7 +1,7 @@
 use std::ops::Range;
 use time;
 
-use cgmath::Aabb3;
+use collision::Aabb3;
 use noise;
 use noise::{Brownian3, Seed};
 

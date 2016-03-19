@@ -8,6 +8,7 @@ extern crate android_glue;
 extern crate lazy_static;
 
 extern crate cgmath;
+extern crate collision;
 extern crate libc;
 extern crate noise;
 #[cfg(target_os = "linux")]

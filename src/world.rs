@@ -4,7 +4,8 @@ use std::ops::Range;
 use time;
 
 use cgmath;
-use cgmath::{Aabb3, BaseNum, Line2, Point3};
+use cgmath::{BaseNum, Point3};
+use collision::{Aabb3, Line2};
 
 use perlin;
 
@@ -96,7 +97,7 @@ impl <T> Segment2<T> {
 }
 
 impl Segment2<i32> {
-  pub fn as_cgmath(&self) -> cgmath::Line2<f32> {
+  pub fn as_cgmath(&self) -> Line2<f32> {
     let origin = cgmath::Point2::new(self.start.x as f32, self.start.z as f32);
     let dest = cgmath::Point2::new(self.end.x as f32, self.end.z as f32);
     Line2::new(origin, dest)
