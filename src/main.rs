@@ -18,7 +18,7 @@ extern crate time;
 #[cfg(target_os = "android")]
 use std::sync::mpsc;
 #[cfg(target_os = "android")]
-use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 #[cfg(target_os = "android")]
 use android_glue::{AssetError, Event};
@@ -65,22 +65,7 @@ pub fn main() {
   let (event_tx, event_rx) = mpsc::channel::<Event>();
   android_glue::add_sender_missing(event_tx);
   'event: loop {
-    match event_rx.try_recv() {
-      Ok(ev) => {
-        log!("----- Event: {:?}", ev);
-        match ev {
-          Event::InitWindow => init_display(&mut engine),
-          Event::GainedFocus => engine.gained_focus(),
-          Event::Pause => engine.lost_focus(),
-          Event::TermWindow => engine.term(),
-          _ => (),
-        }
-      },
-      Err(TryRecvError::Empty) => (),
-      Err(TryRecvError::Disconnected) => {
-        panic!("----- Failed to get next event, channel disconnected")
-      },
-    }
+    handle_event(&event_rx, &mut engine);
     engine.update_draw();
 
     let app = android_glue::get_app();
@@ -88,6 +73,27 @@ pub fn main() {
       engine.term();  // Double-termination is fine.
       break 'event;
     }
+  }
+}
+
+/// Handle a single event if present.
+#[cfg(target_os = "android")]
+fn handle_event(rx: &Receiver<Event>, engine: &mut Engine) {
+  match rx.try_recv() {
+    Ok(ev) => {
+      log!("----- Event: {:?}", ev);
+      match ev {
+        Event::InitWindow => init_display(engine),
+        Event::GainedFocus => engine.gained_focus(),
+        Event::Pause => engine.lost_focus(),
+        Event::TermWindow => engine.term(),
+        _ => (),
+      }
+    },
+    Err(TryRecvError::Empty) => (),
+    Err(TryRecvError::Disconnected) => {
+      panic!("----- Failed to get next event, channel disconnected")
+    },
   }
 }
 
