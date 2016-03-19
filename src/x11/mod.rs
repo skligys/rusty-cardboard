@@ -28,17 +28,19 @@ type Window = XID;
 type KeyCode = c_ulong;
 type Time = c_ulong;
 
-type XIM = *mut ();
-type XrmDatabase = *const ();
-type XIC = *mut ();
+enum XIMOpaque {}
+type XIM = *mut XIMOpaque;
+enum XrmDatabaseOpaque {}
+type XrmDatabase = *const XrmDatabaseOpaque;
+enum XICOpaque {}
+type XIC = *mut XICOpaque;
 
 type Enum = c_uint;
 type UInt = c_uint;
 type SizeI = c_int;
 type Char = c_char;
 
-#[repr(C)]
-struct Display;
+enum Display {}
 
 #[repr(C)]
 struct XErrorEvent {
@@ -1029,7 +1031,7 @@ extern "C" {
   fn XCloseIM(im: XIM) -> Status;
   fn XCreateColormap(display: *mut Display, window: Window, visual: *mut Visual, alloc: c_int) -> Colormap;
   // This is a vararg function.
-  fn XCreateIC(im: XIM, a: *const c_char, b: c_long, c: *const c_char, d: Window, e: *const ()) -> XIC;
+  fn XCreateIC(im: XIM, a: *const c_char, b: c_long, c: *const c_char, d: Window, e: *const c_void) -> XIC;
   fn XCreateWindow(display: *mut Display, parent: Window, x: c_int, y: c_int, width: c_uint, height: c_uint,
     border_width: c_uint, depth: c_int, class: c_uint, visual: *mut Visual, valuemask: c_ulong,
     attributes: *mut XSetWindowAttributes) -> Window;
@@ -1058,7 +1060,7 @@ extern "C" {
 }
 
 
-type Visual = ();
+enum Visual {}
 type VisualID = c_ulong;
 
 #[repr(C)]

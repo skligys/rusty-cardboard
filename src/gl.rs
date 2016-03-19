@@ -205,15 +205,15 @@ pub fn get_compile_status(shader: Shader) -> bool {
 
 pub fn get_shader_info_log(shader: Shader) -> String {
   let buffer_size = get_shader_param(shader, INFO_LOG_LENGTH);
-  let mut buff = vec![0; buffer_size as usize];
+  let mut buff = vec![0 as Char; buffer_size as usize];
   unsafe {
     glGetShaderInfoLog(shader, buffer_size, ptr::null_mut(), buff.as_mut_ptr());
   }
   string_from_chars(&buff)
 }
 
-fn string_from_chars(chars: &[u8]) -> String {
-  chars.iter().map(|c| *c as char).collect()
+fn string_from_chars(chars: &[Char]) -> String {
+  chars.iter().map(|c| *c as u8 as char).collect()
 }
 
 pub fn delete_shader(shader: Shader) {
@@ -296,7 +296,7 @@ pub fn get_link_status(program: Program) -> bool {
 
 pub fn get_program_info_log(program: Program) -> String {
   let buffer_size = get_program_param(program, INFO_LOG_LENGTH);
-  let mut buff = vec![0; buffer_size as usize];
+  let mut buff = vec![0 as Char; buffer_size as usize];
   unsafe {
     glGetProgramInfoLog(program, buffer_size, ptr::null_mut(), buff.as_mut_ptr());
   }
