@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
-use std::ops::Range;
 use time;
 
 use cgmath;
@@ -111,62 +110,37 @@ struct Rect2<T> {
   max: Point2<T>,
 }
 
-impl Rect2<i32> {
-  fn x_range(&self) -> Range<i32> {
-    Range {
-      start: self.min.x,
-      // Important: +1 since the end is exclusive.
-      end: self.max.x + 1,
-    }
-  }
-
-  fn z_range(&self) -> Range<i32> {
-    Range {
-      start: self.min.z,
-      // Important: +1 since the end is exclusive.
-      end: self.max.z + 1,
-    }
-  }
-}
-
 impl World {
   /// Generates world chunks visible from the start point within the radius.
   pub fn new(start: &Point2<f32>, radius: f32) -> World {
     let start_s = time::precise_time_s();
     log!("*** Generating world...");
 
-    let xz_chunk_rect = start_radius_to_chunk_rect(start, radius);
-
-    let mut chunks: Vec<Point2<i32>> = Vec::new();
-    for x_chunk in xz_chunk_rect.x_range() {
-      for z_chunk in xz_chunk_rect.z_range() {
-        let chunk = Point2::new(x_chunk, z_chunk);
-        if within_radius(start, radius, &chunk) {
-          chunks.push(chunk);
-        }
-      }
-    }
-    let chunks = &chunks;
-
+    // TODO: Load the chunk at (0, 0, 0) synchronously, load other chunks within radius in the
+    // background, while prioritizing chunks in the field of view.
     let mut all_blocks: HashSet<Block> = HashSet::new();
-    let mut chunk_blocks: HashMap<Chunk, Vec<Block>> = HashMap::with_capacity(chunks.len());
-    for c in chunks {
-      let chunk_3d = Chunk::new(c.x, 0, c.z);
-      let block_bounds = chunk_3d.block_bounds();
-      let blocks = perlin::generate_blocks(&block_bounds);
-
-      all_blocks.extend(blocks.clone());
-      chunk_blocks.insert(chunk_3d, blocks);
-    }
+    assert!(radius > 0.0);
+    let capacity_estimate = radius as usize * radius as usize;
+    let mut chunk_blocks: HashMap<Chunk, Vec<Block>> = HashMap::with_capacity(capacity_estimate);
 
     let eye = {
-      let chunk0_blocks = chunk_blocks.get(&Chunk::new(0, 0, 0)).unwrap();
+      let chunk0 = Chunk::new(0, 0, 0);
+      let blocks0 = perlin::generate_blocks(&chunk0.block_bounds());
+      all_blocks.extend(blocks0.clone());
+      chunk_blocks.insert(chunk0, blocks0.clone());
+
       let start_block = Point2 {
         x: coord_to_block(start.x),
         z: coord_to_block(start.z),
       };
-      place_eye(&chunk0_blocks, &start_block)
+      place_eye(&blocks0, &start_block)
     };
+
+    for c in within_radius_iter(start, radius) {
+      let blocks = perlin::generate_blocks(&c.block_bounds());
+      all_blocks.extend(blocks.clone());
+      chunk_blocks.insert(c, blocks);
+    }
 
     let spent_ms = (time::precise_time_s() - start_s) * 1000.0;
     log!("*** Generated world: {:.3}ms, {} chunks, {} blocks", spent_ms, chunk_blocks.len(), all_blocks.len());
@@ -199,16 +173,67 @@ impl World {
   }
 }
 
-fn start_radius_to_chunk_rect(start: &Point2<f32>, radius: f32) -> Rect2<i32> {
-  Rect2 {
-    min: Point2 {
-      x: coord_to_chunk(start.x - radius),
-      z: coord_to_chunk(start.z - radius),
-    },
-    max: Point2 {
-      x: coord_to_chunk(start.x + radius),
-      z: coord_to_chunk(start.z + radius),
-    },
+struct WithinRadiusIterator {
+  start: Point2<f32>,
+  radius: f32,
+  min_x: i32,
+  next_x: i32,
+  end_x: i32,
+  next_z: i32,
+  end_z: i32,
+}
+
+/// Returns chunks within given radius of the start point, except for chunk (0, 0, 0).
+// Darn, have to hand-code this, there is no way to create ranges and filter_map
+// them to return an iterator.
+fn within_radius_iter(start: &Point2<f32>, radius: f32) -> WithinRadiusIterator {
+  let min_x = coord_to_chunk(start.x - radius);
+  let max_x = coord_to_chunk(start.z + radius);
+  let min_z = coord_to_chunk(start.z - radius);
+  let max_z = coord_to_chunk(start.z + radius);
+  WithinRadiusIterator {
+    start: start.clone(),
+    radius: radius,
+    min_x: min_x,
+    next_x: min_x,
+    end_x: max_x + 1,
+    next_z: min_z,
+    end_z: max_z + 1,
+  }
+}
+
+impl WithinRadiusIterator {
+  fn skip_chunk(&self) -> bool {
+    if self.next_x == 0 && self.next_z == 0 {
+      return true;
+    }
+    let chunk = Point2::new(self.next_x, self.next_z);
+    !within_radius(&self.start, self.radius, &chunk)
+  }
+
+  fn inc(&mut self) -> () {
+    if self.next_x < self.end_x {
+      self.next_x += 1;
+    } else {
+      self.next_x = self.min_x;
+      self.next_z += 1;
+    }
+  }
+}
+
+impl Iterator for WithinRadiusIterator {
+  type Item = Chunk;
+  fn next(&mut self) -> Option<Chunk> {
+    while self.next_x < self.end_x && self.next_z < self.end_z {
+      if self.skip_chunk() {
+        self.inc();
+        continue;
+      }
+      let result = Some(Chunk::new(self.next_x, 0, self.next_z));
+      self.inc();
+      return result;
+    }
+    None
   }
 }
 
