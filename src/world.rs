@@ -174,7 +174,7 @@ impl World {
 }
 
 struct WithinRadiusIterator {
-  start: Point2<f32>,
+  center: Point2<f32>,
   radius: f32,
   min_x: i32,
   next_x: i32,
@@ -183,16 +183,16 @@ struct WithinRadiusIterator {
   end_z: i32,
 }
 
-/// Returns chunks within given radius of the start point, except for chunk (0, 0, 0).
+/// Returns chunks within given radius of the center, except for chunk (0, 0, 0).
 // Darn, have to hand-code this, there is no way to create ranges and filter_map
 // them to return an iterator.
-fn within_radius_iter(start: &Point2<f32>, radius: f32) -> WithinRadiusIterator {
-  let min_x = coord_to_chunk(start.x - radius);
-  let max_x = coord_to_chunk(start.z + radius);
-  let min_z = coord_to_chunk(start.z - radius);
-  let max_z = coord_to_chunk(start.z + radius);
+fn within_radius_iter(center: &Point2<f32>, radius: f32) -> WithinRadiusIterator {
+  let min_x = coord_to_chunk(center.x - radius) - 1;
+  let max_x = coord_to_chunk(center.z + radius) + 1;
+  let min_z = coord_to_chunk(center.z - radius) - 1;
+  let max_z = coord_to_chunk(center.z + radius) + 1;
   WithinRadiusIterator {
-    start: start.clone(),
+    center: center.clone(),
     radius: radius,
     min_x: min_x,
     next_x: min_x,
@@ -208,13 +208,12 @@ impl WithinRadiusIterator {
       return true;
     }
     let chunk = Point2::new(self.next_x, self.next_z);
-    !within_radius(&self.start, self.radius, &chunk)
+    !within_radius(&self.center, self.radius, &chunk)
   }
 
   fn inc(&mut self) -> () {
-    if self.next_x < self.end_x {
       self.next_x += 1;
-    } else {
+    if self.next_x >= self.end_x {
       self.next_x = self.min_x;
       self.next_z += 1;
     }
@@ -308,7 +307,7 @@ fn place_eye(blocks: &Vec<Block>, xz: &Point2<i32>) -> Option<Point3<i32>> {
 #[cfg(test)]
 mod tests {
   use std::ops::Not;
-  use super::{CHUNK_SIZE, Point2, coord_to_chunk, within_radius};
+  use super::{CHUNK_SIZE, Point2, coord_to_chunk, within_radius,  within_radius_iter};
 
   #[test]
   fn coord_to_chunk_test_center_0() {
@@ -337,11 +336,29 @@ mod tests {
 
   #[test]
   fn within_radius_test_yes() {
-    assert!(within_radius(&Point2::new(0.0, 0.0), CHUNK_SIZE as f32, &Point2::new(1, 1)));
+    let origin = Point2::new(0.0, 0.0);
+    assert!(within_radius(&origin, CHUNK_SIZE as f32, &Point2::new(1, 1)));
   }
 
   #[test]
   fn within_radius_test_no() {
-    assert!(within_radius(&Point2::new(0.0, 0.0), CHUNK_SIZE as f32 * 0.5, &Point2::new(0, 1)).not());
+    let origin = Point2::new(0.0, 0.0);
+    assert!(within_radius(&origin, CHUNK_SIZE as f32 * 0.5, &Point2::new(0, 1)).not());
+  }
+
+  #[test]
+  // With radius just below sqrt(2) / 2, should return nothing.
+  fn within_radius_test_radius_0_7071() {
+    let origin = Point2::new(0.0, 0.0);
+    let it = within_radius_iter(&origin, 0.7071 * CHUNK_SIZE as f32);
+    assert_eq!(it.count(), 0);
+  }
+
+  #[test]
+  // With radius just above sqrt(2) / 2, should return 8 out of 9 chunks surrounding the origin.
+  fn within_radius_test_radius_0_7072() {
+    let origin = Point2::new(0.0, 0.0);
+    let it = within_radius_iter(&origin, 0.7072 * CHUNK_SIZE as f32);
+    assert_eq!(it.count(), 8);
   }
 }

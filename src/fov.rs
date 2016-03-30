@@ -161,6 +161,7 @@ impl NormalizeRadians for f32 {
 
 #[cfg(test)]
 mod tests {
+  use std::f32::consts::PI;
   use super::Fov;
   use world::{Point2, Segment2};
 
