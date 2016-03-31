@@ -25,16 +25,16 @@ pub fn generate_blocks(boundaries: &Aabb3<i32>) -> Vec<Block> {
     start: boundaries.min.z,
     end: boundaries.max.z + 1,
   };
-  let y_scale = 1.0 / (y_range.end as f64 - 1.0 - y_range.start as f64);
-  let y_min = y_range.start as f64;
+  let y_scale = 1.0 / (y_range.end as f32 - 1.0 - y_range.start as f32);
+  let y_min = y_range.start as f32;
 
   let mut blocks = Vec::new();
   for y in y_range {
     // Normalize into [0, 1].
-    let normalized_y = (y as f64 - y_min) * y_scale;
+    let normalized_y = (y as f32 - y_min) * y_scale;
     for x in x_range.clone() {
       for z in z_range.clone() {
-        let p = [x as f64, y as f64, z as f64];
+        let p = [x as f32, y as f32, z as f32];
         let val = noise.apply(&seed, &p);
 
         // Probablility to have a block added linearly increases from 0.0 at y_max to 1.0 at y_min.
