@@ -39,6 +39,7 @@ mod egl;
 mod egl_context;
 mod engine;
 mod fov;
+mod fps;
 mod gl;
 mod mesh;
 mod perlin;

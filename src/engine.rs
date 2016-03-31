@@ -7,6 +7,7 @@ use std::f32::consts::PI;
 use time;
 
 use cgmath::Matrix4;
+use fps::{Fps, Stats};
 
 #[cfg(target_os = "android")]
 use egl_context::EglContext;
@@ -51,6 +52,15 @@ pub struct Engine {
   texture: Texture,
   world: World,
   buffers: HashMap<Chunk, Buffers>,
+  fps: Fps,
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for Engine {
+  fn drop(&mut self) {
+    self.lost_focus();
+    log!("*** Renderer terminated");
+  }
 }
 
 impl Engine {
@@ -69,6 +79,7 @@ impl Engine {
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
       buffers: HashMap::new(),
+      fps: Fps::stopped(),
     }
   }
 
@@ -90,6 +101,7 @@ impl Engine {
       texture: Default::default(),
       world: World::new(&Point2::new(0.0, 0.0), FAR_PLANE),
       buffers: HashMap::new(),
+      fps: Fps::stopped(),
     }
   }
 
@@ -294,13 +306,16 @@ impl Engine {
 
       // Drawing is throttled to the screen update rate, so there is no need to do timing here.
       self.draw();
+      if let Some(fps) = self.fps.tick() {
+        print_fps(fps);
+      }
     }
   }
 
   /// Terminate the engine.
   #[cfg(target_os = "android")]
   pub fn term(&mut self) {
-    self.animating = false;
+    self.lost_focus();
     // Drop the program and the EGL context.
     self.engine_impl = Default::default();
     log!("*** Renderer terminated");
@@ -308,12 +323,20 @@ impl Engine {
 
   /// Called when window gains input focus.
   pub fn gained_focus(&mut self) {
-    self.animating = true;
+    if !self.animating {
+      self.animating = true;
+      self.fps.start();
+    }
   }
 
   /// Called when window loses input focus.
   pub fn lost_focus(&mut self) {
-    self.animating = false;
+    if self.animating {
+      self.animating = false;
+      if let Some(fps) = self.fps.stop() {
+        print_fps(fps);
+      }
+    }
   }
 
   #[cfg(target_os = "linux")]
@@ -325,6 +348,11 @@ impl Engine {
   pub fn poll_events(&self) -> PollEventsIterator {
     self.engine_impl.window.poll_events()
   }
+
+}
+
+fn print_fps(fps: Stats) {
+  println!("FPS: min {:.1}, avg {:.1}, max {:.1}", fps.min, fps.avg, fps.max);
 }
 
 trait ToRad {
