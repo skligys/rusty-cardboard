@@ -160,20 +160,17 @@ fn handle_events(engine: &mut Engine) {
   let mut resized_to: Option<(u32, u32)> = None;
   for e in engine.poll_events() {
     match e {
-      Event::MouseMoved(_) => (),  // too much spam
       Event::Resized(w, h) => {
-        log!("{:?}", Event::Resized(w, h));
         resized_to = Some((w, h));
       },
       Event::Focused(f) => {
-        log!("{:?}", Event::Focused(f));
         if f {
           focus_change = Some(FocusChange::Gained);
         } else {
           focus_change = Some(FocusChange::Lost);
         }
       },
-      e => log!("{:?}", e),
+      _ => (),
     }
   }
 

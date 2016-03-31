@@ -701,12 +701,10 @@ impl<'a> Iterator for PollEventsIterator<'a> {
 
       match x_event.type_ {
         KEYMAP_NOTIFY => {
-          println!("X11 event: KEYMAP_NOTIFY");
           refresh_keyboard_mapping(&x_event);
         },
 
         CLIENT_MESSAGE => {
-          println!("X11 event: CLIENT_MESSAGE");
           let client_msg: &XClientMessageEvent = unsafe { mem::transmute(&x_event) };
 
           if client_msg.l[0] == self.window.wm_delete_window as c_long {
@@ -718,7 +716,6 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         },
 
         CONFIGURE_NOTIFY => {
-          println!("X11 event: CONFIGURE_NOTIFY");
           let cfg_event: &XConfigureEvent = unsafe { mem::transmute(&x_event) };
           let mut events: Vec<Event> = Vec::with_capacity(2);
 
@@ -753,13 +750,11 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         },
 
         FOCUS_IN | FOCUS_OUT => {
-          println!("X11 event: FOCUS_IN or FOCUS_OUT");
           let focused = x_event.type_ == FOCUS_IN;
           return Some(Event::Focused(focused));
         }
 
         KEY_PRESS | KEY_RELEASE => {
-          println!("X11 event: KEY_PRESS or KEY_RELEASE");
           let event: &XKeyEvent = unsafe { mem::transmute(&x_event) };
 
           if event.type_ == KEY_PRESS {
@@ -789,7 +784,6 @@ impl<'a> Iterator for PollEventsIterator<'a> {
         },
 
         BUTTON_PRESS | BUTTON_RELEASE => {
-          println!("X11 event: BUTTON_PRESS or BUTTON_RELEASE");
           let event: &XButtonEvent = unsafe { mem::transmute(&x_event) };
 
           let state = if x_event.type_ == BUTTON_PRESS {
